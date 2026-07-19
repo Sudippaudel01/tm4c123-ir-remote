@@ -1,0 +1,253 @@
+================================================================================
+         IR REMOTE CONTROL REPLACEMENT — CIRCUIT SCHEMATIC
+         TM4C123GXL LaunchPad + TSOP13438 + IR333-A LED
+================================================================================
+
+
+FULL SYSTEM SCHEMATIC
+=====================
+
+                        TM4C123GXL LaunchPad
+                 +-------------------------------+
+                 |                               |
+    USB to PC<-->|  PA0 (U0RX) ------+           |
+     (Debug)     |  PA1 (U0TX) ------+           |
+                 |       (UART0 - Virtual COM)   |
+                 |                               |
+                 |  PB6 (T0CCP0) ---|            |  PB6 = IR INPUT (from TSOP)
+                 |                  |            |
+                 |  PB7 (T0CCP1) ---|---+        |  PB7 = IR OUTPUT (to LED driver)
+                 |                  |   |        |
+                 |  J3.01 (+5V) ----|---|--+     |
+                 |  J3.02 (GND) ----|---|--|--+  |
+                 +------------------|---|--|--|--+
+                                    |   |  |  |
+              +---------+-----------+   |  |  |
+              |         |               |  |  |
+              |         |               |  |  |
+    ==========|=========|===============|==|==|==============================
+    CIRCUIT 1: IR RECEIVER              |  |  |
+    ==========|=========|===============|==|==|==============================
+              |         |               |  |  |
+              |    +----+               |  |  |
+              |    |                    |  |  |
+              |    |    +5V (J3.01) ----+--+  |
+              |    |         |            |   |
+              |    |     [100 Ohm]        |   |
+              |    |         |            |   |
+              |    |    Pin3 (VS) ---+    |   |
+              |    |                 |    |   |
+              |    |  TSOP13438   [4.7uF] |   |
+              |    |  (top view)     |    |   |
+              |    |                 |    |   |
+              |    +-- Pin1 (OUT)   Pin2 (GND)+-- GND (J3.02)
+              |         |                |    |
+              |         |                +----+
+              |         |
+              +-- PB6   |
+                  (to TM4C)
+                                    
+    TSOP13438 Pinout (top view, lens facing you):
+    
+         +-------+
+         | (   ) |   <-- IR receiving lens
+         +---+---+
+         |   |   |
+        1|  2|  3|
+        OUT GND VS
+
+    Pin 1 (OUT) --> PB6       Signal output (active LOW during IR burst)
+    Pin 2 (GND) --> GND       Ground
+    Pin 3 (VS)  --> +5V       Supply through 100 Ohm resistor
+
+
+    ==========|=============================================================
+    CIRCUIT 2: IR LED TRANSMITTER
+    ===========|============================================================
+               |
+               |         +5V (J3.01)
+               |            |
+               |        [47 Ohm]         <-- Current limiting resistor
+               |            |
+               |         (Anode)
+               |        +---->|--+        IR333-A LED
+               |        | (Cathode)       (clear package, flat side = cathode)
+               |        |       |
+               |        |   (Collector)
+               |        |    +--+--+
+               |        |    | NPN |      2N3904 Transistor
+               |        |    +--+--+
+               |        |  (Base)|  (Emitter)
+               |        |       |      |
+    PB7 ---[1 kOhm]-----+       |      |
+    (from TM4C)          |       |    GND (J3.02)
+                     [10 kOhm]   |      |
+                         |       +------+
+                        GND
+
+    2N3904 Pinout (flat side facing you, leads pointing down):
+    
+          +-----+
+          | 2N  |
+          | 3904|
+          +--+--+
+          |  |  |
+         E|  B| C|
+     Emitter Base Collector
+
+    IR333-A LED Pinout:
+    - Longer lead  = Anode   (+)  --> connects to 47 Ohm resistor
+    - Shorter lead = Cathode (-)  --> connects to 2N3904 Collector
+    - Flat side of lens = Cathode
+
+
+================================================================================
+COMPLETE WIRING TABLE (for breadboard build)
+================================================================================
+
+  From                    To                      Through/Notes
+  ----                    --                      -------------
+  J3.01 (+5V)             TSOP Pin 3 (VS)         100 Ohm resistor in series
+  J3.02 (GND)             TSOP Pin 2 (GND)        Direct wire
+  TSOP Pin 3 (VS)         TSOP Pin 2 (GND)        4.7 uF cap (+ to Pin3, - to Pin2)
+  TSOP Pin 1 (OUT)        PB6 (J1.07)             Direct wire (5V tolerant pin)
+  
+  J3.01 (+5V)             IR333-A Anode           47 Ohm resistor in series
+  IR333-A Cathode         2N3904 Collector        Direct wire
+  2N3904 Emitter          J3.02 (GND)             Direct wire
+  PB7 (J1.08)             2N3904 Base             1 kOhm resistor in series
+  2N3904 Base             J3.02 (GND)             10 kOhm pull-down resistor
+  
+  USB cable               LaunchPad Debug port    Powers board + UART to PC
+
+
+================================================================================
+TM4C123GXL HEADER PIN LOCATIONS
+================================================================================
+
+  The LaunchPad has two rows of headers: J1 (left) and J3/J4 (right).
+
+  J1 Header (left side of board, top to bottom):
+    J1.01 = +3.3V
+    J1.02 = PB5
+    J1.03 = PB0
+    J1.04 = PB1
+    J1.05 = PE4
+    J1.06 = PE5
+    J1.07 = PB4    <-- NOTE: NOT PB6! See below.
+    J1.08 = PA5    <-- NOTE: NOT PB7! See below.
+    J1.09 = PA6
+    J1.10 = PA7
+
+  J2 Header (left side, bottom):
+    J2.01 = GND
+    J2.02 = PB2
+    J2.03 = PE0
+    J2.04 = PF0
+    J2.05 = RESET
+    J2.06 = PB7 (T0CCP1) ***  <-- IR LED DRIVER OUTPUT
+    J2.07 = PB6 (T0CCP0) ***  <-- TSOP INPUT
+    J2.08 = PA4
+    J2.09 = PA3
+    J2.10 = PA2
+
+  J3 Header (right side, top):
+    J3.01 = +5V    *** POWER for TSOP and LED circuit
+    J3.02 = GND    *** GROUND for all external circuits
+    J3.03 = PD0
+    J3.04 = PD1
+    J3.05 = PD2
+    J3.06 = PD3
+    J3.07 = PE1
+    J3.08 = PE2
+    J3.09 = PE3
+    J3.10 = PF1
+
+  IMPORTANT: PB6 and PB7 are on J2 (pins J2.07 and J2.06), NOT on J1!
+  Verify your board's silkscreen. The pin numbers above are for the
+  EK-TM4C123GXL Rev D LaunchPad. Check your specific board revision.
+
+
+================================================================================
+BREADBOARD LAYOUT GUIDE
+================================================================================
+
+  Suggested breadboard arrangement (view from top):
+
+  +--[LaunchPad mounted across center channel]--+
+  |                                              |
+  |  LEFT SIDE (J1/J2 pins accessible)          |
+  |  RIGHT SIDE (J3/J4 pins accessible)         |
+  +----------------------------------------------+
+
+  Power Rails:
+    Top rail (+)  = +5V from J3.01
+    Top rail (-)  = GND from J3.02
+    Bottom rail   = same, jumped across
+
+  TSOP area (right side of breadboard):
+    Row A: 100 Ohm from +5V rail to TSOP pin 3
+    Row B: 4.7 uF cap from TSOP pin 3 to TSOP pin 2
+    Row C: TSOP pin 2 to GND rail
+    Row D: TSOP pin 1 to wire going to J2.07 (PB6)
+
+  LED Driver area (left side of breadboard):
+    Row E: 47 Ohm from +5V rail to IR333-A anode
+    Row F: IR333-A cathode to 2N3904 collector
+    Row G: 2N3904 emitter to GND rail
+    Row H: 1 kOhm from J2.06 (PB7) to 2N3904 base
+    Row I: 10 kOhm from 2N3904 base to GND rail (pull-down)
+
+
+================================================================================
+COMPONENT LIST (Bill of Materials)
+================================================================================
+
+  Qty   Component              Value/Part       Notes
+  ---   ---------              ----------       -----
+  1     TM4C123GXL LaunchPad   EK-TM4C123GXL   With USB cable
+  1     TSOP13438              38 kHz receiver  3-pin, active low output  
+  1     IR333-A                IR LED           940nm, clear lens
+  1     2N3904                 NPN transistor   TO-92 package
+  1     Resistor               100 Ohm          1/4W, for TSOP power filter
+  1     Resistor               47 Ohm           1/4W, LED current limit
+  1     Resistor               1 kOhm           1/4W, transistor base drive
+  1     Resistor               10 kOhm          1/4W, base pull-down
+  1     Capacitor              4.7 uF           Electrolytic, for TSOP decoupling
+  1     Breadboard             Half-size+       With power rails
+  ~8    Jumper wires           M-M or M-F       For connections
+
+
+================================================================================
+ELECTRICAL VERIFICATION CALCULATIONS
+================================================================================
+
+  TSOP13438 Supply:
+    Vs range (from datasheet): 2.5V to 5.5V
+    With 100 Ohm and ~0.5mA supply current: drop = 0.05V
+    Actual Vs = 5.0V - 0.05V = 4.95V  (within range)
+
+  IR LED Current:
+    I_LED = (V_supply - V_LED - V_CE(sat)) / R
+    I_LED = (5.0 - 1.2 - 0.2) / 47 = 76.6 mA peak
+    At 1/3 duty (38 kHz carrier): I_avg = 25.5 mA
+    IR333-A max continuous: 100 mA  --> OK
+    IR333-A max peak (at 1/3 duty): 200 mA --> OK (76.6 << 200)
+
+  2N3904 Base Drive:
+    I_base = (V_PB7 - V_BE) / R_base
+    I_base = (3.3V - 0.7V) / 1000 = 2.6 mA
+    Required for saturation: I_C / hFE = 76.6 / 100 = 0.77 mA
+    Overdrive factor: 2.6 / 0.77 = 3.4x --> Well into saturation, OK
+
+  Base Pull-Down (10 kOhm):
+    When PB7 is driven HIGH: voltage divider 1k/(1k+10k) is negligible.
+    Base voltage = 3.3V × 10k/(1k+10k) = 3.0V, still well above 0.7V Vbe --> OK
+    During reset (PB7 floating): 10 kOhm pulls base to GND --> transistor OFF
+
+  TM4C PB7 Source Current:
+    2.6 mA base drive << 8 mA max GPIO source current --> OK
+
+  PB6 Input (5V tolerant):
+    TSOP output: 0V (low) to ~4.95V (high)
+    PB6 is 5V tolerant per TM4C123GH6PM datasheet table 23-5 --> OK

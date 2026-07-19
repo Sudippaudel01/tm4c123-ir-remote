@@ -1,0 +1,905 @@
+================================================================================
+    IR REMOTE CONTROL REPLACEMENT — COMPLETE PROJECT EXPLANATION
+    TM4C123GXL LaunchPad — Semester Project
+    Created: April 13, 2026
+================================================================================
+
+
+TABLE OF CONTENTS
+=================
+  1. What Is This Project?
+  2. What Problem Does It Solve?
+  3. How the System Works (Big Picture)
+  4. Hardware Components and Wiring
+  5. How IR Communication Works (Background)
+  6. Software Architecture — The Three Threads
+  7. Detailed Code Walkthrough — Every File Explained
+  8. How Recording Works (recv Command) — Step by Step
+  9. How Playback Works (xmit Command) — Step by Step
+ 10. The Key Trick: Software AND Gate (PB7 Mode Switching)
+ 11. Timer Configuration Details
+ 12. Interrupt Priority and Why It Matters
+ 13. Memory Layout and Data Structures
+ 14. Why This Design Is Universal (Works With Any TV)
+ 15. Complete File Listing
+ 16. How to Build and Flash
+ 17. How to Use the System
+ 18. Common Questions and Answers
+
+
+================================================================================
+1. WHAT IS THIS PROJECT?
+================================================================================
+
+This is an embedded systems semester project that uses a TM4C123GXL LaunchPad
+microcontroller to completely REPLACE a TV remote control.
+
+You point your existing remote at the system, press a button, and the system
+RECORDS the exact infrared signal. Later, you type a command on a serial
+terminal (like PuTTY on your PC) and the system REPLAYS that exact signal
+through an IR LED — turning your TV on, changing volume, switching channels,
+or whatever the original button did.
+
+The system supports 16 keys:
+  - Key 1: Dedicated to the ON/OFF (power) function
+  - Keys 2-16: General-purpose — record anything you want
+
+The user communicates via a UART serial terminal connected through the LaunchPad's
+USB debug port. You type commands like:
+  - "recv 5"  — record a signal into key 5
+  - "xmit 5"  — play back the signal stored in key 5
+
+
+================================================================================
+2. WHAT PROBLEM DOES IT SOLVE?
+================================================================================
+
+Instead of decoding the IR protocol (NEC, RC5, Sony, etc.) — which would tie
+the project to one specific protocol — this system uses a RAW TIMING CAPTURE
+approach. It simply records the EXACT timing of every mark and space from the
+demodulated IR receiver output, then replays those timings by toggling a 38 kHz
+carrier on and off.
+
+This means:
+  - It works with ANY TV brand (Samsung, LG, Sony, Panasonic, Vizio, etc.)
+  - It works with ANY IR protocol (NEC, RC5, RC6, Sony SIRC, etc.)
+  - You don't need to know what protocol your TV uses
+  - You don't need to hardcode any IR codes
+
+The tradeoff is that signals are stored in RAM and lost when power is removed.
+The user must re-record buttons after each power cycle (or the system could be
+extended to use flash storage, but that's not required for this assignment).
+
+
+================================================================================
+3. HOW THE SYSTEM WORKS (BIG PICTURE)
+================================================================================
+
+There are two main operations: RECORD and TRANSMIT.
+
+RECORDING (recv command):
+  1. User types "recv 5" on the serial terminal
+  2. System prints "Point remote at receiver and press a key..."
+  3. User points their TV remote at the TSOP13438 IR receiver and presses a button
+  4. The TSOP13438 demodulates the 38 kHz carrier and outputs a clean digital signal
+  5. Timer0A captures the timestamp of every rising and falling edge
+  6. The ISR computes the time between each pair of edges and stores it in a buffer
+  7. After the last edge, SysTick detects a 65 ms gap with no new edges
+  8. SysTick sets captureDone = 1 and the main loop copies the buffer into keys[4]
+  9. System prints "Recorded 67 edges for key 5" (or however many)
+
+TRANSMITTING (xmit command):
+  1. User types "xmit 5" on the serial terminal
+  2. System reads the stored timing array for key 5
+  3. For each entry in the array:
+     - If it's a MARK (even index): Turn ON the 38 kHz PWM carrier on PB7
+     - If it's a SPACE (odd index): Turn OFF the carrier and force PB7 LOW
+     - Wait for the exact duration stored in the array using Timer1A
+  4. After the last entry, turn off the carrier and restore PB7
+  5. System prints "Transmission complete"
+  6. The TV responds to the replayed IR signal
+
+
+Data Flow Diagram:
+
+  [TV Remote] --IR light--> [TSOP13438] --digital signal--> [PB6/Timer0A]
+                                                                   |
+                                                          (captures edges)
+                                                                   |
+                                                           [SRAM buffer]
+                                                                   |
+                                                          (play back timings)
+                                                                   |
+                                          [PB7/Timer0B PWM] --38kHz--> [2N3904] --current--> [IR LED]
+                                                                                                |
+                                                                            --IR light--> [TV]
+
+
+================================================================================
+4. HARDWARE COMPONENTS AND WIRING
+================================================================================
+
+4.1 Components Required:
+
+  Part                 Qty   Purpose
+  ----                 ---   -------
+  EK-TM4C123GXL       1     Microcontroller board (the "brain")
+  TSOP13438            1     IR receiver — demodulates 38 kHz carrier
+  IR333-A              1     Infrared LED — emits IR light (invisible to eye)
+  2N3904 NPN           1     Transistor — amplifies current to drive LED
+  100 Ohm resistor     1     Series resistor for TSOP power supply filtering
+  47 Ohm resistor      1     Current-limiting resistor for IR LED
+  1 kOhm resistor      1     Base resistor for 2N3904 transistor
+  10 kOhm resistor     1     Base-to-GND pull-down (keeps LED off during reset)
+  4.7 uF capacitor     1     Decoupling cap for TSOP power supply
+  USB cable             1     Powers the board + serial communication
+  Breadboard + wires   1     Physical assembly
+
+4.2 Pin Connections:
+
+  TM4C Pin    Header    Signal              Connects To
+  --------    ------    ------              -----------
+  PA0         J1.03     U0RX                USB virtual COM port (PC → MCU)
+  PA1         J1.04     U0TX                USB virtual COM port (MCU → PC)
+  PB6         J2.07     T0CCP0 (capture)    TSOP13438 pin 1 (OUT)
+  PB7         J2.06     T0CCP1 (PWM)        2N3904 base through 1 kOhm
+  +5V         J3.01     Power               TSOP pin 3 through 100 Ohm, LED circuit
+  GND         J3.02     Ground              TSOP pin 2, 2N3904 emitter, LED cathode side
+
+4.3 IR Receiver Circuit (TSOP13438):
+
+  The TSOP13438 has 3 pins:
+    Pin 1 = OUT (demodulated output, active LOW)
+    Pin 2 = GND
+    Pin 3 = VS (+5V supply through 100 Ohm)
+
+  Wiring:
+    +5V (J3.01) ----[100 Ohm]----+---- TSOP Pin 3 (VS)
+                                  |
+                              [4.7 uF]  (+ side to TSOP pin 3)
+                                  |
+    GND (J3.02) -----------------+---- TSOP Pin 2 (GND)
+
+    TSOP Pin 1 (OUT) -----------------> PB6 (J2.07)
+
+  The 100 Ohm resistor and 4.7 uF cap form a filter to prevent power supply
+  noise from causing false triggers. This is the TSOP datasheet recommended
+  application circuit.
+
+  PB6 is a 5V-tolerant pin, so the TSOP's 5V output connects directly —
+  no level shifter needed.
+
+  The TSOP output idles HIGH and goes LOW when it sees 38 kHz IR light.
+
+4.4 IR LED Transmitter Circuit:
+
+  The TM4C GPIO can only source ~8 mA, but the IR LED needs 50-80 mA for
+  adequate range. The 2N3904 transistor switches the higher current.
+
+  Wiring:
+    +5V (J3.01) ----[47 Ohm]---- IR333-A Anode (longer lead)
+                                  IR333-A Cathode (shorter lead, flat side)
+                                      |
+                                  2N3904 Collector (middle pin in TO-92)
+                                  2N3904 Emitter (right pin) ---- GND
+                                  2N3904 Base (left pin) ----[1 kOhm]---- PB7 (J2.06)
+                                       |
+                                   [10 kOhm]
+                                       |
+                                      GND
+
+  The 10 kOhm pull-down ensures the transistor stays OFF when PB7 is floating
+  during microcontroller reset/boot.
+
+  How it works:
+    When PB7 goes HIGH: base current flows through 1kOhm, turning on the transistor.
+    Current flows from +5V through 47 Ohm through LED through transistor to GND.
+    LED current = (5.0V - 1.2V LED drop - 0.2V Vce_sat) / 47 Ohm = 77 mA peak.
+
+    When PB7 goes LOW: transistor turns off, no current flows, LED is dark.
+
+    At the 1/3 duty cycle of the 38 kHz PWM, average LED current is ~26 mA.
+    This provides several meters of IR transmission range.
+
+
+================================================================================
+5. HOW IR COMMUNICATION WORKS (BACKGROUND)
+================================================================================
+
+Consumer IR remotes communicate by flashing an LED at 38 kHz (38,000 times per
+second). This frequency is invisible to the human eye but detected by the
+TSOP13438 receiver.
+
+The data is encoded in the TIMING of the flashes:
+
+  MARK = LED is flashing at 38 kHz (carrier ON). The TSOP output goes LOW.
+  SPACE = LED is dark (carrier OFF). The TSOP output goes HIGH.
+
+Different protocols use different timing patterns:
+
+  NEC Protocol (most common, used by Samsung, LG, many others):
+    - Leader: 9000 us mark + 4500 us space
+    - Logic 0: 560 us mark + 560 us space
+    - Logic 1: 560 us mark + 1690 us space
+    - Stop bit: 560 us mark
+    - Total frame: ~67.5 ms (32 data bits + leader)
+    - Typical edge count: ~67 edges
+
+  RC5 Protocol (used by Philips):
+    - Uses Manchester encoding
+    - Bit time: 889 us per half-bit
+    - Total frame: ~24.9 ms (14 bits)
+    - Typical edge count: ~28 edges
+
+  Sony SIRC:
+    - Leader: 2400 us mark + 600 us space
+    - Logic 0: 600 us mark + 600 us space
+    - Logic 1: 1200 us mark + 600 us space
+
+Our system doesn't care about any of this. It just records the raw timing of
+every mark and space, whatever they are. During playback, it reproduces those
+exact timings. The TV receiver sees the same signal it would from its own remote.
+
+
+================================================================================
+6. SOFTWARE ARCHITECTURE — THE THREE THREADS
+================================================================================
+
+The firmware has exactly THREE threads of execution:
+
+THREAD 1: FOREGROUND — Main Loop (runs in main())
+  - Initializes all hardware
+  - Reads commands from UART (polled, no interrupt)
+  - Executes recv and xmit commands
+  - This is the ONLY code that runs when no command is active
+
+THREAD 2: BACKGROUND — Timer0A Capture ISR (timer0AIsr)
+  - Triggered by HARDWARE on every edge of PB6 (TSOP output)
+  - Records the timestamp of each edge
+  - Computes time delta between consecutive edges
+  - Stores deltas in captureBuffer[]
+  - Runs ONLY during the recv command
+  - Priority 1 (high — must not miss any edges)
+
+THREAD 3: BACKGROUND — SysTick ISR (systickIsr)
+  - Fires every 1 ms from the SysTick timer
+  - Two jobs:
+    (a) Gap Detection: Counts how long since the last edge. If 65 ms passes
+        with no edge, the IR frame is over → sets captureDone = 1
+    (b) Timeout: Counts total time since recv started. After 10 seconds with
+        no signal at all, the main loop detects timeout
+  - Runs ONLY during the recv command
+  - Priority 3 (lower than Timer0A — capture ISR takes precedence)
+
+THREAD INTERACTION (shared variables):
+  - captureBuffer[]: Written by Timer0A ISR, read by main after capture completes
+  - captureCount: Written by Timer0A ISR, read by main
+  - captureDone: Written by Timer0A ISR or SysTick ISR, read by main
+  - capturing: Written by main, read by Timer0A ISR and SysTick ISR
+  - gapTimerMs: Reset by Timer0A ISR on each edge, incremented by SysTick ISR
+  - timeoutCounter: Incremented by SysTick ISR, read by main
+
+All shared variables are declared "volatile" to prevent the compiler from
+optimizing away reads in the polling loops.
+
+
+================================================================================
+7. DETAILED CODE WALKTHROUGH — EVERY FILE EXPLAINED
+================================================================================
+
+7.1 main.c — The Entry Point
+
+  What it does:
+    - #includes clock.h, uart0.h, ir.h
+    - Defines getsUart0(): reads a line from UART with backspace handling
+    - Defines parseNumber(): converts ASCII digits to uint8_t
+    - main() initializes clock, UART, and IR hardware
+    - Prints startup banner and checks if Key 1 is empty
+    - Enters infinite loop: print "> ", read command, parse and execute
+
+  Command parsing:
+    Character-by-character comparison (not strcmp for the command word):
+    - buffer[0..4] == "xmit " → parse key number, call irXmit(n)
+    - buffer[0..4] == "recv " → parse key number, call irRecv(n)
+    - anything else → print error message
+
+  getsUart0() details:
+    - Polls getcUart0() one character at a time
+    - Backspace (ASCII 8 or 127): decrements count, sends BS-SPACE-BS to terminal
+    - Enter (ASCII 13): null-terminates string, returns
+    - Printable chars (>= 32): stores and echoes
+    - Max 80 characters
+
+7.2 ir.c — The Core IR Logic (All the Important Stuff)
+
+  This file contains ALL the IR-specific code:
+
+  initIr():
+    - Enables clocks for Timer0, Timer1, GPIO Port B
+    - Configures PB6 as T0CCP0 input (IR receiver) and PB7 as T0CCP1 output (IR LED)
+    - Sets up Timer0A: 16-bit split, capture mode, both edges, prescaler=39 (1 MHz)
+    - Sets up Timer0B: 16-bit split, periodic PWM, period=1052 (38 kHz), match=702 (1/3 duty)
+    - Sets up Timer1A: 32-bit one-shot for microsecond delays (polled, no interrupt)
+    - Sets up SysTick: reload=39999 (1 ms at 40 MHz), initially disabled
+    - Sets Timer0A NVIC priority to 1
+    - Initializes all 16 keys to invalid
+
+  timer0AIsr():
+    - Clears capture interrupt flag
+    - If not capturing, returns immediately
+    - Reads 24-bit capture value from TIMER0_TAR_R and TIMER0_TAPS_R
+    - Resets gapTimerMs to 0 (tells SysTick "an edge just arrived")
+    - First edge (captureCount==0): saves timestamp, sets captureCount=1, returns
+    - Subsequent edges: computes delta, stores in captureBuffer, increments count
+    - If buffer is full (MAX_EDGES reached), sets captureDone=1
+
+  systickIsr():
+    - Increments timeoutCounter (for 10-second overall timeout)
+    - If currently capturing and at least 1 edge has been received:
+      - Increments gapTimerMs
+      - If gapTimerMs >= 65: frame is over, sets captureDone=1, stops capturing
+
+  delayUs(us):
+    - Static helper for microsecond delays using Timer1A
+    - Loads TIMER1_TAILR with (us * 40) - 1
+    - Starts one-shot countdown, polls TATORIS flag
+    - When flag is set, stops timer and clears flag
+
+  irRecv(keyNum):
+    - Validates key number (1-16)
+    - If key 1: prints "Recording ON/OFF power button..."
+    - Resets all capture state variables
+    - Enables Timer0A capture interrupt and SysTick
+    - Polls in a loop until captureDone==1 or timeoutCounter>=10000
+    - Disables interrupts
+    - If capture succeeded: copies captureBuffer into keys[keyNum-1], prints edge count
+    - If timeout: prints error message
+
+  irXmit(keyNum):
+    - Validates key number and checks if key has valid data
+    - Ensures PB7 is in alternate function mode
+    - Loops through stored timing array:
+      - Even indices (marks): enables 38 kHz PWM, waits for duration
+      - Odd indices (spaces): disables PWM, forces PB7 LOW via GPIO, waits
+    - After loop: disables carrier, restores PB7 to alt function mode
+
+  isKeyValid(keyNum):
+    - Returns true if the specified key has recorded data
+
+7.3 ir.h — Header File
+
+  Defines the IRSignal struct:
+    - count: number of timing entries
+    - times_us[200]: array of mark/space durations in microseconds
+    - valid: 1 if data has been recorded, 0 if empty
+
+  Constants: MAX_EDGES = 200, NUM_KEYS = 16
+
+  Function prototypes: initIr, irRecv, irXmit, isKeyValid
+
+7.4 tm4c123gh6pm_startup_ccs.c — Vector Table
+
+  This file defines the Cortex-M4 interrupt vector table. It maps hardware
+  interrupt numbers to our ISR functions:
+
+    Slot 15 (SysTick):    systickIsr    — our gap detection / timeout ISR
+    Slot 35 (Timer 0A):   timer0AIsr    — our edge capture ISR
+
+  All other slots point to a default fault handler.
+
+7.5 clock.c / clock.h — System Clock Configuration
+
+  Copied from Lab 6. Configures the PLL to generate 40 MHz from the 16 MHz
+  on-board crystal. Called once at startup by main().
+
+7.6 uart0.c / uart0.h — UART0 Serial Driver
+
+  Copied from Lab 6. Provides polled UART functions:
+    - initUart0(): configures PA0/PA1 for UART at 115200 baud
+    - getcUart0(): blocks until a character is received, returns it
+    - putcUart0(c): blocks until TX is ready, sends character
+    - putsUart0(str): sends a null-terminated string
+
+7.7 wait.c / wait.h — Busy-Wait Delays
+
+  Copied from Lab 6. Provides waitMicrosecond() using a simple loop.
+  Not used by our IR code (we use Timer1A instead for better accuracy),
+  but included in the project for completeness.
+
+7.8 tm4c123gh6pm.h — Register Definitions
+
+  TI-provided header with #defines for all peripheral register addresses
+  and bit field masks. Examples:
+    TIMER0_CTL_R, TIMER_CTL_TAEN, GPIO_PORTB_DATA_R, NVIC_ST_CTRL_R, etc.
+
+7.9 tm4c123gh6pm.cmd — Linker Command File
+
+  TI-provided linker script that defines the memory map:
+    FLASH: 0x00000000, 256 KB (program code goes here)
+    SRAM:  0x20000000, 32 KB (variables go here)
+
+
+================================================================================
+8. HOW RECORDING WORKS (recv COMMAND) — STEP BY STEP
+================================================================================
+
+Let's trace exactly what happens when you type "recv 5" and press a Samsung
+power button:
+
+STEP 1: User types "recv 5" + Enter
+  → main loop: getsUart0() returns "recv 5"
+  → main loop: detects "recv " prefix, parseNumber("5") → keyNum = 5
+  → main loop: calls irRecv(5)
+
+STEP 2: irRecv(5) starts
+  → prints "Point remote at receiver and press a key..."
+  → sets captureCount=0, captureDone=0, capturing=1, gapTimerMs=0, timeoutCounter=0
+  → enables Timer0A capture interrupt (TIMER0_IMR_R, NVIC_EN0_R)
+  → enables SysTick (NVIC_ST_CTRL_R)
+  → enters polling loop: while(!captureDone && timeoutCounter < 10000)
+
+STEP 3: SysTick ticks away
+  → Every 1 ms, systickIsr fires
+  → timeoutCounter increments: 1, 2, 3, ... counting toward 10000 (10 seconds)
+  → gapTimerMs also increments but captureCount is still 0 so gap detection is inactive
+
+  The user now picks up their Samsung remote and points it at the TSOP...
+
+STEP 4: User presses the power button (let's say at timeoutCounter = 2500, i.e. 2.5 sec)
+  → The Samsung remote sends an NEC frame:
+    9000 us mark, 4500 us space, then 32 data bits...
+
+STEP 5: First falling edge arrives on PB6 (start of 9000 us leader mark)
+  → Timer0A captures the timestamp and fires the interrupt
+  → timer0AIsr:
+    - Clears interrupt flag
+    - Reads currentTime from capture register (e.g., 0x123456)
+    - Sets gapTimerMs = 0
+    - captureCount is 0 → this is the first edge
+    - Saves lastEdgeTime = 0x123456
+    - Sets captureCount = 1
+    - Returns
+
+STEP 6: First rising edge arrives (end of 9000 us leader mark)
+  → timer0AIsr:
+    - currentTime = (e.g., 0x125786)
+    - gapTimerMs = 0
+    - captureCount is 1 → compute delta
+    - delta = 0x125786 - 0x123456 = 0x2330 = 9008 us ≈ 9000 us ✓
+    - Stores captureBuffer[0] = 9008
+    - captureCount = 2
+    - lastEdgeTime = 0x125786
+
+STEP 7: Next falling edge (end of 4500 us leader space)
+  → delta = ~4500 us, stored in captureBuffer[1]
+
+STEP 8: This continues for all ~67 edges of the NEC frame
+  → captureBuffer fills up: [9008, 4502, 561, 562, 561, 1687, ...]
+  → Between each edge, SysTick keeps resetting gapTimerMs because timer0AIsr
+     sets it to 0 on every edge
+
+STEP 9: Last edge arrives (end of stop bit mark, ~560 us)
+  → After this, the remote stops transmitting
+  → No more edges come on PB6
+  → Timer0A ISR does NOT fire anymore
+
+STEP 10: Gap detection kicks in
+  → SysTick keeps firing every 1 ms
+  → gapTimerMs increments: 1, 2, 3, ... 63, 64, 65
+  → At gapTimerMs = 65 (65 ms with no edge):
+    - systickIsr sets captureDone = 1 and capturing = 0
+    - This signals "the IR frame is complete"
+
+STEP 11: Main loop detects completion
+  → The polling loop in irRecv sees captureDone == 1 → breaks out
+  → Disables Timer0A interrupt and SysTick
+  → captureCount = 68 (1 initial + 67 deltas)
+  → count = 68 - 1 = 67
+  → Copies captureBuffer[0..66] into keys[4].times_us[0..66]
+  → Sets keys[4].count = 67, keys[4].valid = 1
+  → Prints "Recorded 67 edges for key 5"
+
+STEP 12: Control returns to main loop
+  → Prints "> " and waits for next command
+
+
+================================================================================
+9. HOW PLAYBACK WORKS (xmit COMMAND) — STEP BY STEP
+================================================================================
+
+Now you type "xmit 5" to turn on the Samsung TV:
+
+STEP 1: main loop calls irXmit(5)
+  → validates keyNum=5, checks keys[4].valid == 1 ✓
+  → prints "Transmitting..."
+  → count = keys[4].count = 67
+
+STEP 2: Ensure PB7 is in alternate function mode (T0CCP1 for PWM)
+
+STEP 3: Loop iteration i=0 (MARK, index is even)
+  → Enable PWM: set AFSEL on PB7, set PCTL to T0CCP1, set TIMER0_CTL TBEN=1
+  → The 38 kHz carrier appears on PB7 → transistor switches → IR LED flashes
+  → Call delayUs(keys[4].times_us[0]) = delayUs(9008)
+  → Timer1A counts down from 9008*40 = 360,320 cycles, takes 9008 us
+  → LED flashes at 38 kHz for 9008 microseconds (the leader mark)
+
+STEP 4: Loop iteration i=1 (SPACE, index is odd)
+  → Disable PWM: clear TBEN=0
+  → Switch PB7 to GPIO mode, set output LOW → LED goes completely dark
+  → Call delayUs(keys[4].times_us[1]) = delayUs(4502)
+  → Wait 4502 us (the leader space)
+
+STEP 5: Loop iterations i=2 through i=66
+  → Alternates between marks (38 kHz on) and spaces (LED off)
+  → Each duration exactly matches what was recorded from the Samsung remote
+  → Total time: ~67.5 ms for a full NEC frame
+
+STEP 6: After the loop
+  → Ensure carrier is off, PB7 forced LOW
+  → Restore PB7 to alternate function mode for future transmissions
+  → Print "Transmission complete"
+
+STEP 7: The Samsung TV's IR receiver sees the replayed signal
+  → It's identical to the original remote's signal
+  → The TV turns on (or off, since it's a toggle)
+
+
+================================================================================
+10. THE KEY TRICK: SOFTWARE AND GATE (PB7 MODE SWITCHING)
+================================================================================
+
+This is the most clever part of the design and worth understanding in detail.
+
+THE PROBLEM:
+  During IR transmission, PB7 needs to output a 38 kHz square wave during marks
+  and be completely LOW during spaces. But Timer0B generates PWM continuously —
+  when you stop the timer, the output pin state is undefined (could be high or
+  low depending on where in the cycle the timer stopped).
+
+THE NAIVE SOLUTION:
+  Use a hardware AND gate: PWM_signal AND enable_signal. This requires an extra
+  IC (like a 74HC08 AND gate chip).
+
+OUR SOLUTION — SOFTWARE AND GATE:
+  Instead of using a hardware AND gate, we switch PB7 between two modes:
+
+  MARK (carrier ON):
+    PB7 is in ALTERNATE FUNCTION mode → Timer0B drives it with 38 kHz PWM
+    Registers: AFSEL |= bit7, PCTL = T0CCP1, TBEN = 1
+
+  SPACE (carrier OFF):
+    PB7 is in GPIO OUTPUT mode → we drive it LOW directly
+    Registers: AFSEL &= ~bit7, PCTL = 0, DIR |= bit7, DATA &= ~bit7
+
+  This achieves the same result as a hardware AND gate but with zero extra
+  components. The mode switching takes ~5 register writes = ~125 ns, which is
+  negligible compared to the shortest IR pulse (560,000 ns).
+
+
+================================================================================
+11. TIMER CONFIGURATION DETAILS
+================================================================================
+
+11.1 Timer0A — Input Edge-Time Capture (IR Receiver)
+
+  Shares Timer0 module with Timer0B (split 16-bit mode).
+
+  Register Settings:
+    TIMER0_CFG_R = 0x04          (16-bit split timer mode)
+    TIMER0_TAMR_R = 0x17         (capture mode + edge-time + count up)
+    TIMER0_CTL_R: TAEVENT = 0x03 (both edges: rising AND falling)
+    TIMER0_TAPR_R = 39           (prescaler divides 40 MHz by 40 = 1 MHz)
+
+  Timer resolution: 1 microsecond (each tick = 1 us)
+  Effective counter width: 16-bit timer + 8-bit prescaler = 24 bits
+  Max time before rollover: 2^24 us = 16,777,216 us ≈ 16.8 seconds
+  This far exceeds any IR frame duration.
+
+  How capture works:
+    On each edge of PB6 (TSOP output), the hardware automatically:
+    1. Copies the current timer count into the TAR/TAPS capture register
+    2. Sets the capture event interrupt flag
+    3. CPU vectors to timer0AIsr
+
+11.2 Timer0B — 38 kHz PWM Output (IR LED Carrier)
+
+  Shares Timer0 module with Timer0A (split 16-bit mode).
+
+  Register Settings:
+    TIMER0_TBMR_R = 0x0A         (periodic + PWM mode)
+    TIMER0_TBILR_R = 1052        (period: 40,000,000 / 38,000 = 1052.6 ≈ 1053 cycles)
+    TIMER0_TBMATCHR_R = 702      (match: 1053 - 351 = 702; ON for 351 cycles = 1/3 duty)
+    TIMER0_TBPR_R = 0            (no prescaler — full 40 MHz)
+
+  Output frequency: 40,000,000 / 1053 = 37,987 Hz ≈ 38 kHz ✓
+  Duty cycle: 351 / 1053 = 33.3% ✓ (IR standard 1/3 duty)
+
+  This timer runs in hardware — NO ISR, NO CPU involvement.
+  The CPU only starts it (TBEN=1) and stops it (TBEN=0).
+
+11.3 Timer1A — Microsecond Delay (Transmission Timing)
+
+  Uses the full Timer1 module in 32-bit mode (Timer1B unavailable).
+
+  Register Settings:
+    TIMER1_CFG_R = 0x00          (32-bit wide timer mode)
+    TIMER1_TAMR_R = 0x01         (one-shot countdown)
+
+  How delayUs(us) works:
+    Load TAILR with (us * 40) - 1     → e.g., 560 us → 22,399 ticks
+    Start timer (TAEN = 1)
+    Poll TATORIS flag               → busy-wait until counter reaches 0
+    Stop timer (TAEN = 0)
+    Clear timeout flag
+
+  Resolution: 25 ns (1 / 40 MHz)
+  Max delay: 2^32 / 40,000,000 = 107 seconds (way more than needed)
+  No interrupt — simple polling keeps code simple
+
+11.4 SysTick — Gap Detection and Timeout
+
+  Register Settings:
+    NVIC_ST_RELOAD_R = 39,999    (40,000 - 1 → 1 ms period at 40 MHz)
+    NVIC_ST_CTRL_R bits:
+      CLK_SRC = 1 (use system clock, 40 MHz)
+      INTEN = 1 (interrupt enabled)
+      ENABLE = 1 (timer running)
+
+  Tick period: 1 ms
+  Only enabled during recv, disabled at all other times.
+
+
+================================================================================
+12. INTERRUPT PRIORITY AND WHY IT MATTERS
+================================================================================
+
+  Source          Priority    Why
+  ------          --------    ---
+  Timer0A (IRQ19)  1 (HIGH)  Must capture every edge without delay. If this ISR
+                              is delayed even 560 us, we miss an edge and corrupt
+                              the recording.
+
+  SysTick          3 (LOW)   Gap detection/timeout is not time-critical. A 1 ms
+                              jitter on a 65 ms threshold is only 1.5%.
+
+  Timer0B          N/A       No ISR. PWM runs in hardware autonomously.
+  Timer1A          N/A       No ISR. Used by polling in main loop.
+  UART0            N/A       No ISR. Polled by main loop.
+
+  KEY RULE: Timer0A (priority 1) can PREEMPT SysTick (priority 3).
+  If SysTick is running and a PB6 edge arrives, the CPU immediately pauses
+  SysTick and jumps to timer0AIsr. After timer0AIsr returns, SysTick resumes.
+  This guarantees no edge can be missed due to SysTick.
+
+  SysTick CANNOT preempt Timer0A (lower priority number = higher priority).
+
+
+================================================================================
+13. MEMORY LAYOUT AND DATA STRUCTURES
+================================================================================
+
+  typedef struct {
+      uint16_t count;              // 2 bytes: how many mark/space entries stored
+      uint16_t times_us[200];      // 400 bytes: alternating mark/space durations
+      uint8_t  valid;              // 1 byte: 0 = empty, 1 = data recorded
+  } IRSignal;                      // Total: 403 bytes per key
+
+  IRSignal keys[16];               // 16 keys × 403 bytes = 6,448 bytes in SRAM
+
+  volatile uint16_t captureBuffer[200];  // 400 bytes (temporary capture storage)
+  volatile uint16_t captureCount;        // 2 bytes
+  volatile uint8_t  captureDone;         // 1 byte
+  volatile uint8_t  capturing;           // 1 byte
+  volatile uint32_t lastEdgeTime;        // 4 bytes
+  volatile uint32_t gapTimerMs;          // 4 bytes
+  volatile uint32_t timeoutCounter;      // 4 bytes
+
+  Total SRAM usage: ~7 KB out of 32 KB available.
+  No heap allocation. No malloc. Everything is static/global.
+
+  Buffer format (times_us[]):
+    Index 0: first mark duration (us)     — e.g., 9000 for NEC leader
+    Index 1: first space duration (us)    — e.g., 4500 for NEC leader
+    Index 2: second mark duration (us)    — e.g., 560
+    Index 3: second space duration (us)   — e.g., 560 (logic 0) or 1690 (logic 1)
+    ...and so on, alternating mark/space
+
+  Maximum 200 transitions per key, which is more than enough for any protocol:
+    NEC: ~67 transitions
+    RC5: ~28 transitions
+    Sony: ~26-52 transitions
+
+
+================================================================================
+14. WHY THIS DESIGN IS UNIVERSAL (WORKS WITH ANY TV)
+================================================================================
+
+Traditional IR remote replacements decode the protocol:
+  1. Measure leader pulse → identify protocol (NEC, RC5, etc.)
+  2. Decode each data bit according to protocol rules
+  3. Extract device address and command code
+  4. For playback: encode the command back into protocol-specific timing
+
+This requires separate code for every protocol and fails on unknown protocols.
+
+OUR APPROACH — RAW TIMING:
+  1. Record EVERY edge transition timing without interpreting any of it
+  2. Store the raw timing array in memory
+  3. For playback: reproduce the EXACT same timing sequence
+
+This is like recording audio vs. understanding speech. We just "replay the tape"
+without needing to understand the language.
+
+Benefits:
+  - Works with ANY protocol (NEC, RC5, RC6, Sony SIRC, Panasonic, Sharp, etc.)
+  - Works with ANY TV brand
+  - No protocol-specific code needed
+  - Simpler code (no state machine for each protocol)
+  - Even works with non-standard or proprietary IR protocols
+
+The only requirement is that the protocol uses a 38 kHz carrier frequency
+(which 95%+ of consumer IR devices use. The TSOP13438 is tuned for 38 kHz).
+
+
+================================================================================
+15. COMPLETE FILE LISTING
+================================================================================
+
+  /home/rupert/Desktop/embedded Projecy/ir_remote/
+  ├── main.c                          Main application (command loop)
+  ├── ir.c                            IR record/transmit logic (core of project)
+  ├── ir.h                            IR data structures and prototypes
+  ├── clock.c                         System clock (PLL to 40 MHz)
+  ├── clock.h                         Clock function prototypes
+  ├── uart0.c                         UART0 serial driver (polled)
+  ├── uart0.h                         UART0 function prototypes
+  ├── wait.c                          Busy-wait delay functions
+  ├── wait.h                          Wait function prototypes
+  ├── tm4c123gh6pm.h                  TI register definitions header
+  ├── tm4c123gh6pm.cmd                TI linker command file
+  └── tm4c123gh6pm_startup_ccs.c      Interrupt vector table
+
+  /home/rupert/Desktop/embedded Projecy/plan/
+  ├── design_report_fixed.txt         Complete design report (text)
+  ├── design_report.docx              Design report (Word format)
+  ├── circuit_schematic.txt           ASCII circuit schematic
+  ├── ir_remote_circuit.svg           Hand-drawn style SVG schematic
+  ├── ir_remote_schematic.svg         Block-style SVG schematic
+  └── convert_to_docx.py             Report conversion script
+
+
+================================================================================
+16. HOW TO BUILD AND FLASH
+================================================================================
+
+STEP 1: Install Code Composer Studio (CCS) from Texas Instruments
+  - Download from: https://www.ti.com/tool/CCSTUDIO
+  - Install with "TM4C12x ARM Cortex-M4F" support
+
+STEP 2: Create a new CCS project
+  - File → New → CCS Project
+  - Target: TM4C123GH6PM
+  - Connection: Stellaris In-Circuit Debug Interface
+  - Project name: ir_remote
+  - Empty project (with main.c)
+
+STEP 3: Add all source files
+  - Copy all 12 files from ir_remote/ into the project
+  - Replace the auto-generated main.c with our main.c
+  - Replace the auto-generated .cmd file with our tm4c123gh6pm.cmd
+  - Replace the auto-generated startup file with our tm4c123gh6pm_startup_ccs.c
+
+STEP 4: Build
+  - Project → Build All (Ctrl+B)
+  - Should compile with zero errors and zero warnings
+
+STEP 5: Flash and Debug
+  - Connect TM4C123GXL to PC via the Debug USB port (top USB connector)
+  - Run → Debug (F11)
+  - CCS will flash the firmware and halt at main()
+  - Run → Resume (F8) to start execution
+
+
+================================================================================
+17. HOW TO USE THE SYSTEM
+================================================================================
+
+STEP 1: Open a serial terminal (PuTTY, Tera Term, or CCS Terminal)
+  - Port: the COM port assigned to the TM4C123GXL (check Device Manager)
+  - Baud: 115200
+  - Data: 8 bits, No parity, 1 stop bit (8-N-1)
+
+STEP 2: You should see:
+  IR Remote Control Replacement
+  Commands: xmit <1-16>, recv <1-16>
+  Key 1 = ON/OFF power, Keys 2-16 = general
+
+  Key 1 (ON/OFF) is empty. Use 'recv 1' to record your TV power button.
+
+  >
+
+STEP 3: Record the TV power button
+  - Type: recv 1
+  - System says: "Recording ON/OFF power button for Key 1..."
+  - System says: "Point remote at receiver and press a key..."
+  - Point your TV remote at the TSOP and press the POWER button
+  - System says: "Recorded 67 edges for key 1" (number may vary)
+
+STEP 4: Test power toggle
+  - Point the IR LED at your TV
+  - Type: xmit 1
+  - The TV should turn ON (or OFF if it was already on)
+
+STEP 5: Record more buttons
+  - recv 2 → press Volume Up on your remote
+  - recv 3 → press Volume Down
+  - recv 4 → press Channel Up
+  - recv 5 → press Channel Down
+  - ...etc. up to recv 16
+
+STEP 6: Use the recorded buttons
+  - xmit 2 → Volume Up
+  - xmit 3 → Volume Down
+  - xmit 4 → Channel Up
+  - xmit 5 → Channel Down
+
+STEP 7: Re-record any key at any time
+  - Just use recv <number> again — it overwrites the previous recording
+
+
+================================================================================
+18. COMMON QUESTIONS AND ANSWERS
+================================================================================
+
+Q: Does Key 1 have to be the power button?
+A: By convention yes — the code prompts you to record it if empty. But there's no
+   technical restriction. You can record any button into any key.
+
+Q: What happens if I type "xmit 5" but key 5 was never recorded?
+A: The system prints "Key has no recorded data" and does nothing.
+
+Q: What happens if I type "recv 5" but don't press any remote button?
+A: After 10 seconds, the system prints "Timeout - no signal received" and returns
+   to the command prompt.
+
+Q: Can I record from different remotes?
+A: Yes! Key 1 could be your Samsung TV power, key 2 could be your LG soundbar
+   volume up, key 3 could be your Sony Blu-ray play button. Any remote that uses
+   a 38 kHz carrier will work.
+
+Q: Are the recordings saved when I unplug the board?
+A: No. All data is in RAM and lost on power-off. You must re-record after each
+   power cycle. This is a design choice to keep the code simple (no flash write).
+
+Q: What's the maximum range?
+A: With the 47 Ohm resistor giving ~77 mA through the IR LED, you should get
+   3-5 meters of reliable range in a typical room. This is similar to a regular
+   TV remote.
+
+Q: Why not use a UART interrupt instead of polling?
+A: Polling is simpler and sufficient. During recv, we're not reading UART anyway.
+   During xmit, we're busy transmitting. The only time we read UART is while
+   waiting for a command, and polling is fine for that.
+
+Q: Why is the prescaler 39 and not 40?
+A: The hardware divides by (prescaler + 1). So prescaler = 39 gives division by
+   40: 40 MHz / 40 = 1 MHz = 1 us per tick.
+
+Q: Why 65 ms for gap detection?
+A: The longest valid gap WITHIN an IR frame is about 40 ms (NEC repeat space).
+   65 ms is safely above this, so no in-frame gap is mistaken for end-of-frame.
+   But 65 ms is short enough that the user doesn't notice any delay.
+
+Q: Why does Timer0B period use 1052 instead of 1053?
+A: The hardware counts from 0 to TBILR, so the actual period is TBILR + 1 = 1053
+   cycles. 40,000,000 / 1053 = 37,987 Hz ≈ 38 kHz.
+
+Q: What protocols have been tested?
+A: The design works with any 38 kHz protocol. NEC (Samsung, LG) and RC5 (Philips)
+   are the most common and are confirmed to work by the timing analysis. The raw
+   capture approach means even obscure protocols will work.
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================

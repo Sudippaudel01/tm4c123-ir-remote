@@ -1,0 +1,611 @@
+IR Remote Control Replacement – Design Report
+
+1. Introduction
+
+This project uses the TM4C123GXL LaunchPad to replace an IR remote control. The system
+records infrared signals from any existing remote control via a TSOP13438 IR receiver and
+replays them through an IR333-A infrared LED. The user communicates with the system through
+a UART serial terminal connected via the on-board ICDI virtual COM port.
+
+The system supports 16 keys:
+  - Key 1 is hardcoded to the ON/OFF (power) function. The user records the TV's power
+    button once using 'recv 1', and then 'xmit 1' always sends the ON/OFF power command.
+    On startup, the system prompts the user to record Key 1 if it is empty.
+  - Keys 2–16 are general-purpose record/playback keys — the user records a signal from
+    any remote using the 'recv <number>' command and replays it using 'xmit <number>'.
+
+A raw timing capture approach is used. The system records the exact duration of every mark
+(IR burst) and space (silence) from the TSOP demodulated output. During playback, these
+durations are reproduced by toggling a 38 kHz PWM carrier on and off. This eliminates the
+need to decode any specific IR protocol, making the system compatible with NEC, RC5, Sony,
+Panasonic, and other consumer IR formats.
+
+
+2. Block Diagram
+
+2.1 System Block Diagram
+
+    +==============+            USB             +=============+
+    |     PC       |<=========================>|  TM4C123GXL |
+    | (Terminal)   |    UART0 (PA0/PA1)        |  LaunchPad  |
+    +==============+                            +=============+
+                                                  |         |
+                                          PB6     |         |  PB7
+                                    (T0CCP0)      |         |  (T0CCP1)
+                                                  |         |
+                                            +-----+--+  +--+--------+
+                                            |TSOP    |  | 2N3904    |
+                                            |13438   |  | Transistor|
+                                            |Receiver|  +-----+-----+
+                                            +--------+        |
+                                                          +---+----+
+                                                          |IR333-A |
+                                                          |IR LED  |
+                                                          +--------+
+
+Internal TM4C123GXL Modules:
+
+  UART0 on PA0 (RX) and PA1 (TX):
+    Polled serial interface to the PC terminal. The main loop reads characters and parses
+    commands. No UART interrupt is used.
+
+  Timer0A on PB6:
+    Configured as an input edge-time capture timer. Each edge of the TSOP output triggers
+    a capture interrupt that records the timestamp. The ISR computes the time difference
+    between consecutive edges and stores it in a buffer in SRAM.
+
+  Timer0B on PB7:
+    Configured as a PWM output generating the 38 kHz IR carrier. During transmission, the
+    main loop enables and disables this timer to create marks and spaces.
+
+  Timer1A:
+    Configured as a one-shot countdown timer used for accurate microsecond-level delays
+    during IR transmission. The main loop loads a delay value, starts the timer, and polls
+    the done flag.
+
+  SysTick:
+    Configured as a free-running countdown timer used for two purposes:
+      (a) 10-second timeout during recv (main loop polls the counter)
+      (b) 65 ms gap-detection watchdog during capture (see Section 3.3)
+
+External Components:
+  - PC connected via USB Virtual COM Port (serial terminal)
+  - TSOP13438 IR Receiver (output connected to PB6)
+  - IR333-A LED driven by a 2N3904 NPN transistor (base driven from PB7)
+
+
+2.2 Pin Assignments
+
+  TM4C Pin    Function                           Connection
+  --------    --------                           ----------
+  PA0         U0RX                               Virtual COM port receive (from PC)
+  PA1         U0TX                               Virtual COM port transmit (to PC)
+  PB6         T0CCP0 (Timer0A input capture)     TSOP13438 Pin 1 (OUT)
+  PB7         T0CCP1 (Timer0B PWM output)        2N3904 base through 1 kOhm resistor
+  J3 pin 1    +5V power rail                     TSOP13438 Pin 3 (VS) through 100 Ohm resistor
+  J3 pin 2    GND                                TSOP13438 Pin 2, transistor emitter, LED return
+
+
+2.3 Hardware Wiring
+
+TSOP13438 Receiver Circuit:
+  As required by the assignment and the TSOP datasheet application circuit, a 100 Ohm series
+  resistor is placed between the +5V supply and TSOP pin 3, and a 4.7 uF decoupling capacitor
+  is placed between pins 2 and 3.
+
+    +5V (J3.01) --[100 Ohm]--+-- TSOP Pin 3 (VS)
+                              |
+                          [4.7 uF]
+                              |
+    GND (J3.02) --------------+-- TSOP Pin 2 (GND)
+
+    TSOP Pin 1 (OUT) ------------ PB6
+
+  The TSOP output idles HIGH and transitions LOW when it detects an IR burst at the 38 kHz
+  carrier frequency. PB6 is a 5V-tolerant pin on the TM4C123GH6PM, so connecting the TSOP
+  output directly is safe without a level shifter.
+
+IR LED Transmitter Circuit:
+  The TM4C GPIO pins can source only about 8 mA, which is not enough for the IR LED.
+  A 2N3904 NPN transistor switches the higher LED current.
+
+    +5V --[47 Ohm]-- IR333-A Anode
+                     IR333-A Cathode -- 2N3904 Collector
+                                        2N3904 Emitter -- GND
+                                        2N3904 Base --[1 kOhm]-- PB7
+                                             |
+                                         [10 kOhm]
+                                             |
+                                            GND
+
+  The 10 kOhm resistor from base to GND ensures the transistor stays OFF while
+  PB7 is floating during microcontroller reset/boot, preventing false LED flashes.
+
+  With a 47 Ohm resistor and +5V supply:
+    I = (5.0V - 1.2V LED drop - 0.2V transistor saturation) / 47 Ohm = 77 mA peak.
+  At the 1/3 carrier duty cycle, the average current is approximately 26 mA. This is within
+  the IR333-A continuous rating of 100 mA and provides adequate radiant intensity for several
+  meters of transmission range. The +5V rail is used instead of 3.3V to increase LED
+  brightness and range.
+
+
+2.4 Timing Constraints
+
+  Parameter                        Value              Source
+  ---------                        -----              ------
+  Shortest pulse to capture        560 us             NEC logic 0 mark/space
+  Longest pulse to capture         9,000 us           NEC leader burst
+  Carrier frequency                38 kHz (26.3 us)   NEC standard
+  Carrier duty cycle               1/3 (~8.77 us ON)  NEC standard
+  NEC total frame duration         67.5 ms            NEC protocol specification
+  RC5 total frame duration         24.9 ms            RC5 protocol specification
+  End-of-frame gap threshold       65 ms              Design choice: exceeds any valid in-frame gap
+  Required timer resolution        <= 50 us           For < 10% error on shortest 560 us pulse
+  IR receiver timing tolerance     +/- 20%            Typical consumer IR receiver tolerance
+
+
+3. Software Approach
+
+3.1 Data Structure
+
+  #define MAX_EDGES  200
+  #define NUM_KEYS   16
+
+  typedef struct {
+      uint16_t count;                // number of timing entries stored
+      uint16_t times_us[MAX_EDGES];  // alternating mark/space durations in us
+      uint8_t  valid;                // 1 = data recorded, 0 = empty
+  } IRSignal;
+
+  IRSignal keys[NUM_KEYS];
+
+Shared variables between the Timer0A ISR, SysTick ISR, and the main loop:
+
+  volatile uint16_t capture_buffer[MAX_EDGES];
+  volatile uint16_t capture_count;
+  volatile uint8_t  capture_done;
+  volatile uint8_t  capturing;
+  volatile uint32_t last_edge_time;
+  volatile uint32_t gap_timer_us;    // counts up in SysTick ISR, reset by Timer0A ISR
+
+Memory Usage:
+  Each key uses 403 bytes (2 + 400 + 1). 16 keys = 6,448 bytes. The capture buffer adds
+  ~410 bytes. Total SRAM usage is approximately 7 KB out of the 32 KB available on the
+  TM4C123GH6PM.
+
+
+3.2 Thread 1: Foreground — Main Loop (runs in main())
+
+The main loop is the only foreground thread. It initializes all peripherals, then enters an
+infinite loop that polls UART0 for user input and executes commands. UART0 is polled (not
+interrupt-driven), so there is no UART ISR.
+
+Initialization (runs once at startup):
+  - Configure the system clock to 40 MHz using the PLL from the 16 MHz on-board crystal.
+    40 MHz provides sufficient resolution for all timing requirements.
+  - Configure UART0 on PA0/PA1 at 115,200 baud (polled mode, no interrupt).
+  - Configure Timer0A on PB6 for input edge-time capture on both edges.
+  - Configure Timer0B on PB7 for 38 kHz PWM output (initially stopped).
+  - Configure Timer1A as a one-shot timer for microsecond delays during transmission.
+  - Configure SysTick with a 1 ms tick (STRELOAD = 40,000 - 1 at 40 MHz). SysTick ISR
+    increments gap_timer_us and a timeout counter used during recv.
+  - Initialize all 16 keys to invalid (empty). Key 1 starts empty and is recorded by
+    the user during the first session using 'recv 1'.
+
+Command Loop (runs forever in main()):
+
+  loop:
+    Print "> " to UART0
+    Poll UART0 to read characters one at a time until CR/LF received
+    Store characters into a command string buffer
+
+    Parse the command string:
+
+    If command is "recv N" where N is 1 through 16:
+      If N == 1: Print "Recording ON/OFF power button for Key 1..."
+
+      Print "Point remote at receiver and press a key..."
+      Set capture_count = 0, capture_done = 0, capturing = 1
+      Reset gap_timer_us = 0 and timeout_counter = 0
+      Enable Timer0A capture event interrupt in NVIC
+      Enable SysTick interrupt
+
+      Poll in a loop:
+        If capture_done == 1: break (frame captured, ended by gap detection or buffer full)
+        If timeout_counter >= 10000 (10 seconds): break (timeout, no signal received)
+
+      Disable Timer0A capture event interrupt
+      Disable SysTick interrupt
+      Set capturing = 0
+
+      If capture_done == 1:
+        Copy capture_buffer[] into keys[N-1].times_us[]
+        Set keys[N-1].count = capture_count - 1
+        Set keys[N-1].valid = 1
+        Print "Recorded [count] edges for key [N]"
+      Else:
+        Print "Timeout — no signal received"
+
+    If command is "xmit N" where N is 1 through 16:
+      If keys[N-1].valid == 0:
+        Print "Key [N] has no recorded data"
+      Else:
+        Print "Transmitting key [N]..."
+        For i = 0 to keys[N-1].count - 1:
+          If i is even (this is a mark period):
+            Enable Timer0B PWM (set GPTMCTL TBEN = 1, PB7 outputs 38 kHz carrier)
+            Call delay_us(keys[N-1].times_us[i]) using Timer1A
+          If i is odd (this is a space period):
+            Disable Timer0B PWM (clear GPTMCTL TBEN = 0)
+            Drive PB7 LOW via GPIO to ensure LED is fully off
+            Call delay_us(keys[N-1].times_us[i]) using Timer1A
+        Disable Timer0B after last entry
+        Restore PB7 to alternate function mode (T0CCP1) for next transmission
+        Print "Transmission complete"
+
+    If command is not recognized:
+      Print "Unknown command. Use: xmit <1-16> or recv <1-16>"
+
+    Go to loop
+
+  PB7 Mode Switching During Transmit:
+    At the start of xmit: PB7 is configured as alternate function (T0CCP1) for PWM output.
+    During spaces: PB7 is temporarily reconfigured as GPIO output LOW to guarantee the LED
+    is fully off. This adds approximately 5 register writes (~125 ns) per transition.
+    After xmit completes: PB7 is restored to alternate function mode.
+    This overhead (125 ns per transition) is negligible compared to the shortest pulse
+    (560,000 ns) and is included in the timing analysis below.
+
+UART0 Configuration (polled, no interrupt):
+  Baud rate: 115,200
+  System clock: 40 MHz
+  Baud rate divisor: 40,000,000 / (16 x 115,200) = 21.701
+    IBRD = 21
+    FBRD = integer(0.701 x 64 + 0.5) = 45
+  LCRH = 0x60 (8 data bits, no parity, 1 stop bit, FIFOs disabled)
+  No interrupt enabled. Characters are read by polling the RXFE flag in UARTFR.
+
+
+3.3 Thread 2: Background — Timer0A Capture ISR
+
+This ISR fires on every edge (both rising and falling) of the TSOP output on PB6. The TSOP
+goes LOW during an IR burst (mark) and HIGH during silence (space), so each edge represents
+a transition between mark and space.
+
+The first falling edge (TSOP goes LOW = start of first mark) starts capture. The ISR computes
+the time delta between consecutive edges:
+  - Edge 0 (falling): First mark begins. Save timestamp. No duration stored yet.
+  - Edge 1 (rising):  First mark ends.   Delta = first mark duration.  Stored at index 0.
+  - Edge 2 (falling): First space ends.  Delta = first space duration. Stored at index 1.
+  - And so on: even indices = mark durations, odd indices = space durations.
+
+Timer0A Configuration:
+  GPTMCFG  = 0x04 (16-bit split timer mode)
+  GPTMTAMR = 0x17 (capture mode, edge-time, count up)
+  GPTMCTL:   TnEVENT = 0x03 (capture on both edges)
+  GPTMTAPR = 39 (prescaler: 40 MHz / 40 = 1 MHz tick = 1 us resolution)
+  Effective counter width: 16-bit timer + 8-bit prescaler = 24 bits
+  Maximum time before wraparound: 2^24 us = 16,777,216 us ~ 16.8 seconds
+  This far exceeds the longest IR frame (67.5 ms for NEC, 114 ms including repeat gap).
+
+Capture event interrupt enabled: GPTMIMR CnEIM = 1
+NVIC interrupt priority: 1 (range is 0–7 on Cortex-M4; 0 = highest, 7 = lowest.
+  Priority 1 is the highest application priority, reserving 0 for faults.)
+
+ISR Logic (Timer0A_Handler):
+
+  Timer0A_Handler():
+    Clear the capture event interrupt flag in GPTMICR
+
+    If capturing == 0:
+      Return (ignore edges when not in record mode)
+
+    Read current_time from GPTMTAR:GPTMTAPR capture registers (24-bit value in us)
+
+    Reset gap_timer_us = 0
+      (This resets the SysTick gap-detection counter on every edge. If no edge arrives
+       for 65 ms, SysTick will detect the gap and set capture_done. See Section 3.4.)
+
+    If capture_count == 0:
+      This is the first edge (start of the IR frame)
+      Save current_time as last_edge_time
+      Set capture_count = 1
+      Return (no delta to compute yet)
+
+    Compute delta = current_time - last_edge_time
+    Handle 24-bit unsigned wraparound: delta &= 0x00FFFFFF
+
+    If (capture_count - 1) < MAX_EDGES:
+      Store delta as capture_buffer[capture_count - 1]
+      Increment capture_count
+    Else:
+      Buffer is full, stop capturing
+      Set capture_done = 1
+      Set capturing = 0
+
+    Update last_edge_time = current_time
+
+
+3.4 Thread 3: Background — SysTick ISR (Gap Detection and Timeout)
+
+SysTick provides two functions during the recv command:
+  (a) Gap detection: Detects that no new edge has arrived within 65 ms, signaling end of frame.
+  (b) Recv timeout: Counts up to 10 seconds to detect if no IR signal was received at all.
+
+SysTick Configuration:
+  STRELOAD = 39,999 (40,000 - 1) at 40 MHz = 1 ms tick period
+  NVIC interrupt priority: 3 (lower than Timer0A at priority 1, so capture ISR is never
+    delayed by SysTick)
+  Enabled only during the recv command; disabled at all other times.
+
+ISR Logic (SysTick_Handler):
+
+  SysTick_Handler():
+    Increment timeout_counter (for 10-second recv timeout, checked by main loop)
+
+    If capturing == 1 AND capture_count > 1:
+      Increment gap_timer_us by 1000 (1 ms per tick)
+      If gap_timer_us >= 65000:
+        // No edge in 65 ms — end of IR frame detected
+        Set capture_done = 1
+        Set capturing = 0
+
+Why this is needed:
+  Without gap detection, the Timer0A ISR only fires when an edge arrives. After the last edge
+  of an IR frame, if no repeat code is sent, no more edges come. The system would wait for the
+  full 10-second timeout, making the user experience poor. With SysTick gap detection, frame
+  capture completes within 65 ms of the last edge — essentially instant from the user's
+  perspective.
+
+Interrupt Priority Summary:
+
+  Source          Type                    Priority    Notes
+  ------          ----                    --------    -----
+  Timer0A         Capture ISR             1 (high)    Fires on each TSOP edge during recv
+  SysTick         Gap detect / timeout    3 (low)     1 ms tick, only active during recv
+  Timer0B         PWM hardware            N/A         No ISR, runs autonomously
+  Timer1A         Polled delay            N/A         No ISR, main loop polls timeout flag
+  UART0           Polled                  N/A         No ISR, main loop polls RX flag
+
+  Timer0A has higher priority than SysTick. This guarantees the capture ISR can never be 
+  delayed by the SysTick handler. The SysTick ISR takes approximately 10 cycles (~250 ns),
+  so even if it is interrupted by Timer0A, the Timer0A ISR completes and returns before
+  any timing-critical deadline.
+
+
+3.5 Timer0B: 38 kHz Carrier PWM
+
+Timer0B generates the 38 kHz carrier on PB7 entirely in hardware. Once configured, it requires
+no CPU intervention — the main loop only starts and stops it.
+
+Configuration:
+  Shares GPTMCFG = 0x04 with Timer0A (both in 16-bit split mode)
+  GPTMTBMR = 0x0A (periodic mode, PWM enabled)
+  PB7 alternate function: PCTL field = 7 (T0CCP1)
+  Period: 40,000,000 / 38,000 = 1,053 cycles -> GPTMTBILR = 1052
+  Duty cycle 1/3 ON: ON time = 351 cycles -> GPTMTBMATCHR = 1053 - 351 = 702
+  Initially: TBEN = 0 (timer stopped, no carrier output)
+
+During transmission (called from main loop):
+  To start a mark: Set GPTMCTL TBEN = 1. The 38 kHz square wave appears on PB7, toggling
+    the transistor and LED on/off at 38 kHz.
+  To start a space: Clear GPTMCTL TBEN = 0, then switch PB7 to GPIO output LOW. This
+    ensures the LED is completely off during spaces (the PWM output state when the timer
+    stops is not guaranteed by the hardware).
+
+
+3.6 Timer1A: Microsecond Delay for Transmission
+
+Timer1A is configured as a one-shot countdown timer used exclusively during the transmit
+loop in main(). It provides accurate blocking delays without using SysTick (which is reserved
+for gap detection during recv).
+
+Configuration:
+  GPTMCFG = 0x00 (32-bit mode for Timer1)
+    NOTE: This uses the full Timer1 module. Timer1B is not available, which is acceptable
+    since no other timer function is needed.
+  GPTMTAMR = 0x01 (one-shot mode, count down)
+  No interrupt used — the main loop polls the TATORIS (raw interrupt status) flag
+
+delay_us function (runs in main loop):
+
+  delay_us(uint32_t us):
+    GPTMTAILR = (us * 40) - 1     // load value: 40 ticks per us at 40 MHz
+    GPTMICR = clear timeout flag   // clear any previous timeout
+    GPTMCTL = set TAEN             // start the countdown
+    While TATORIS == 0:            // poll raw timeout interrupt flag
+      do nothing                   // wait for timer to reach 0
+    GPTMCTL = clear TAEN           // stop the timer
+
+In 32-bit mode, the maximum delay is 2^32 / 40,000,000 = 107 seconds. The longest IR pulse
+is 9,000 us (9 ms), so this timer has enormous headroom. The polling approach means no
+interrupt is needed, keeping the system simple.
+
+
+3.7 Timing Analysis
+
+1. Can the capture ISR keep up with incoming edges?
+
+   The shortest interval between consecutive TSOP output edges is 560 us (NEC logic 0:
+   a 560 us mark followed by a 560 us space).
+
+   ISR execution time estimate at 40 MHz (25 ns per clock cycle):
+     ARM Cortex-M4 interrupt entry latency:   12 cycles =  300 ns
+     Clear interrupt flag:                      3 cycles =   75 ns
+     Read capture register:                     4 cycles =  100 ns
+     Reset gap_timer_us:                        2 cycles =   50 ns
+     Compute delta and wraparound:              8 cycles =  200 ns
+     Compare threshold + store in buffer:       7 cycles =  175 ns
+     Update last_edge_time + exit:             14 cycles =  350 ns
+     Total: ~50 cycles x 25 ns = 1.25 us
+
+   CPU utilization during capture: 1.25 us / 560 us = 0.22%.
+   The ISR completes approximately 448 times faster than the minimum edge interval.
+   There is no risk of missing any edges.
+
+   Worst case with SysTick preemption: SysTick (priority 3) cannot preempt Timer0A
+   (priority 1). Timer0A CAN preempt SysTick. SysTick ISR takes ~10 cycles = 250 ns. 
+   The worst case is Timer0A entry is delayed by 250 ns if SysTick is running when the
+   edge arrives. Total worst-case latency: 1.25 us + 0.25 us = 1.5 us. Still << 560 us.
+
+2. Is the timer capture range sufficient?
+
+   With the 8-bit prescaler set to 39 (dividing 40 MHz to 1 MHz), the 16-bit timer plus
+   prescaler gives a 24-bit effective counter. This rolls over after 2^24 us = 16,777,216 us
+   ~ 16.8 seconds. The longest IR frame including repeat gaps is approximately 110 ms (NEC).
+   The timer range exceeds the longest frame by a factor of 150.
+
+3. Is the transmit delay accurate enough?
+
+   Consumer IR receivers tolerate +/- 20% timing error on pulse durations.
+   Timer1A at 40 MHz provides 25 ns resolution. For the shortest pulse (560 us), the timer
+   counts 22,400 ticks. The quantization error is 1 / 22,400 = 0.004%.
+
+   Overhead per mark/space transition:
+     - Enable/disable Timer0B: ~3 register writes = ~75 ns
+     - PB7 GPIO mode switch (during spaces): ~5 register writes = ~125 ns
+     - Total overhead per transition: ~200 ns
+
+   For a 560 us pulse: 200 / 560,000 = 0.036%.
+   Total timing error: < 0.05%, far within the +/- 20% receiver tolerance.
+
+4. Does UART polling affect capture?
+
+   UART is polled only in the main loop. During the recv command, the main loop is polling
+   capture_done and timeout_counter — it does not poll UART. The Timer0A capture ISR and
+   SysTick ISR are the only active interrupts. There is no conflict.
+
+5. Does transmission block the main loop?
+
+   Yes. During xmit, the main loop is occupied for the duration of the IR frame (67.5 ms
+   for NEC). UART characters typed during this time are not read. Since transmission is
+   brief and user-initiated, this is acceptable.
+
+6. Gap detection timing accuracy
+
+   SysTick fires every 1 ms. In the worst case, the gap detection triggers at 65 ms + 1 ms
+   = 66 ms after the last edge. This is safe because:
+     - The longest valid in-frame gap in NEC is the repeat space at ~40 ms
+     - The 65 ms threshold already includes margin above 40 ms
+     - A 1 ms jitter on a 65 ms threshold is 1.5% — negligible
+
+
+4. HW Checkout
+
+Test 1: Verify TSOP13438 Receiver Output
+
+  Purpose: Confirm the IR receiver is wired correctly and produces valid demodulated output.
+
+  Setup:
+    Wire TSOP13438 with 100 Ohm resistor from +5V to pin 3 and 4.7 uF capacitor between
+    pins 2 and 3. Connect TSOP pin 1 to PB6. No application code needs to run — the TSOP
+    operates independently.
+
+  Oscilloscope settings:
+    Channel 1 on PB6, 2 V/div vertical, 5 ms/div horizontal, trigger on falling edge at 2V.
+
+  Procedure:
+    1. Power the LaunchPad via Debug USB.
+    2. Point any household IR remote at the TSOP from approximately 30 cm.
+    3. Press and release a single button on the remote.
+    4. Observe the waveform on the oscilloscope.
+
+  Expected result:
+    The output idles HIGH (~5V). When the remote button is pressed, a pulse train appears.
+    For NEC remotes: first LOW pulse (leader mark) ~ 9 ms, followed by HIGH gap (leader
+    space) ~ 4.5 ms, then shorter pulses for data bits.
+    For RC5 remotes: pulses ~ 889 us wide.
+
+  Pass criteria:
+    - Demodulated pulses are visible.
+    - Leader pulse width measured with cursors is 9 ms +/- 0.5 ms (NEC) or ~889 us (RC5).
+    - Output returns to HIGH after the button is released.
+
+  If test fails:
+    - Verify +5V is present at TSOP pin 3 (after the 100 Ohm resistor).
+    - Check capacitor polarity.
+    - Verify pin 1 is connected to PB6 and not shorted.
+    - Try a different remote control.
+
+
+Test 2: Verify IR LED and 38 kHz Carrier
+
+  Purpose: Confirm the PWM carrier frequency is correct and the LED emits.
+
+  Minimal test code:
+    void main(void) {
+        // Configure system clock to 40 MHz
+        // Enable Timer0 and Port B clocks
+        // Configure PB7 as T0CCP1 (alternate function, PCTL = 7)
+        // Timer0B: 16-bit split, periodic PWM
+        // GPTMTBILR = 1052, GPTMTBMATCHR = 702
+        // Set GPTMCTL TBEN = 1 to start
+        while(1) {} // carrier runs continuously
+    }
+
+  Oscilloscope settings:
+    Channel 1 on PB7, 1 V/div vertical, 10 us/div horizontal.
+
+  Procedure:
+    1. Load and run the test code.
+    2. Measure the waveform period: expect 26.3 us (38 kHz).
+    3. Measure the HIGH time: expect approximately 8.8 us (1/3 duty cycle).
+    4. View the IR LED through a smartphone camera — it should appear as a bright
+       purple/white glow.
+    5. Set TBEN = 0. Verify the waveform stops and PB7 goes LOW.
+
+  Pass criteria:
+    - Frequency is 38 kHz +/- 0.5 kHz.
+    - Duty cycle is approximately 33%.
+    - LED is visible on camera.
+
+
+Test 3: Verify UART Communication
+
+  Minimal test code:
+    void main(void) {
+        // Configure UART0 on PA0/PA1, 115200 baud
+        uart_send_string("Hello World\r\n");
+        while(1) {
+            char c = uart_poll_char();  // blocking poll
+            uart_send_char(c);          // echo back
+        }
+    }
+
+  Procedure:
+    1. Connect LaunchPad to PC via Debug USB.
+    2. Open terminal emulator at 115200 baud, 8-N-1.
+    3. Verify "Hello World" appears.
+    4. Type characters and verify each one echoes correctly.
+
+  Pass criteria:
+    - All characters echo without errors.
+
+
+Test 4: End-to-End Verification
+
+  Purpose: Verify the complete record and playback path.
+
+  Equipment: Oscilloscope (2 channels), IR remote, target device (TV or similar).
+
+  Procedure:
+    1. Load the full application firmware.
+    2. Connect scope Channel 1 to PB6 (TSOP output), Channel 2 to PB7 (LED drive).
+       Set both channels to 2 V/div, timebase to 5 ms/div.
+    3. Enter 'recv 2'. Press a remote button. Observe the captured waveform on Ch1.
+       Note the number of edges reported by the terminal.
+       Verify the terminal responds within ~1 second (gap detection working, not 10s timeout).
+    4. Enter 'xmit 2'. Observe the replayed waveform on Ch2.
+       Compare the two waveforms. Mark/space durations should match within 1%.
+    5. Point the IR LED at the target device. Enter 'xmit 2'.
+       Verify the target device responds correctly.
+    6. Repeat steps 3-5 for several different keys (recv 3 through recv 6) using different
+       remote buttons to verify multiple keys work independently.
+    7. Enter 'recv 1' and record the TV's power button.
+    8. Enter 'xmit 1' pointed at the target device. Verify the TV turns on or off.
+
+  Pass criteria:
+    - Target device responds to each replayed command.
+    - Waveform mark/space durations match within 1%.
+    - All tested keys function independently.
+    - Key 1 ON/OFF power works on the target device after recording.

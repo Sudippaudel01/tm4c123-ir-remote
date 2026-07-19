@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1000" width="1400" height="1000"
+     font-family="'Courier New', monospace" font-size="11">
+<rect width="1400" height="1000" fill="#fffff8"/>
+<rect x="3" y="3" width="1394" height="994" fill="none" stroke="#222" stroke-width="1.5"/>
+<text x="700" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#222">IR Remote Control Replacement — Circuit Schematic</text>
+<text x="700" y="50" text-anchor="middle" font-size="13" font-weight="normal" fill="#555">TM4C123GXL + TSOP13438 + IR333-A + 2N3904</text>
+<rect x="350" y="330" width="200" height="180" fill="#f8f8f0" stroke="#222" stroke-width="2" rx="3"/>
+<text x="450" y="390" text-anchor="middle" font-size="16" font-weight="bold" fill="#222">TM4C123GXL</text>
+<text x="450" y="408" text-anchor="middle" font-size="12" font-weight="normal" fill="#555">LaunchPad</text>
+<line x1="350" y1="370" x2="320" y2="370" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="355" y="374" text-anchor="start" font-size="10" font-weight="normal" fill="#222">PA0</text>
+<text x="355" y="384" text-anchor="start" font-size="8" font-weight="normal" fill="#888">U0RX</text>
+<line x1="350" y1="390" x2="320" y2="390" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="355" y="394" text-anchor="start" font-size="10" font-weight="normal" fill="#222">PA1</text>
+<text x="355" y="404" text-anchor="start" font-size="8" font-weight="normal" fill="#888">U0TX</text>
+<line x1="350" y1="470" x2="320" y2="470" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="355" y="474" text-anchor="start" font-size="10" font-weight="normal" fill="#222">USB</text>
+<line x1="550" y1="370" x2="580" y2="370" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="545" y="374" text-anchor="end" font-size="10" font-weight="normal" fill="#222">PB6</text>
+<text x="545" y="384" text-anchor="end" font-size="8" font-weight="normal" fill="#888">T0CCP0</text>
+<line x1="550" y1="400" x2="580" y2="400" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="545" y="404" text-anchor="end" font-size="10" font-weight="normal" fill="#222">PB7</text>
+<text x="545" y="414" text-anchor="end" font-size="8" font-weight="normal" fill="#888">T0CCP1</text>
+<line x1="480" y1="330" x2="480" y2="305" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="475" y="342" text-anchor="end" font-size="9" font-weight="normal" fill="#222">+5V</text>
+<line x1="480" y1="305" x2="480" y2="297" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="474" y1="299" x2="480" y2="293" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="486" y1="299" x2="480" y2="293" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="480" y="289" text-anchor="middle" font-size="11" font-weight="bold" fill="#cc0000">+5V</text>
+<line x1="480" y1="510" x2="480" y2="520" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="475" y="505" text-anchor="end" font-size="9" font-weight="normal" fill="#222">GND</text>
+<line x1="480" y1="520" x2="480" y2="526" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="472" y1="526" x2="488" y2="526" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="475" y1="530" x2="485" y2="530" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="478" y1="534" x2="482" y2="534" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="585" y="362" text-anchor="start" font-size="9" font-weight="normal" fill="#0066aa">J2 pin 7</text>
+<text x="585" y="392" text-anchor="start" font-size="9" font-weight="normal" fill="#0066aa">J2 pin 6</text>
+<text x="495" y="302" text-anchor="start" font-size="9" font-weight="normal" fill="#0066aa">J3 pin 1</text>
+<text x="495" y="528" text-anchor="start" font-size="9" font-weight="normal" fill="#0066aa">J3 pin 2</text>
+<line x1="320" y1="470" x2="270" y2="470" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="170" y="452" width="100" height="36" fill="#f0f0f0" stroke="#222" stroke-width="1" rx="5"/>
+<text x="220" y="468" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">USB Cable</text>
+<text x="220" y="482" text-anchor="middle" font-size="9" font-weight="normal" fill="#666">to PC/Terminal</text>
+<rect x="900" y="175" width="100" height="90" fill="#f0f0f0" stroke="#222" stroke-width="2" rx="2"/>
+<text x="950" y="212" text-anchor="middle" font-size="13" font-weight="bold" fill="#222">TSOP</text>
+<text x="950" y="228" text-anchor="middle" font-size="13" font-weight="bold" fill="#222">13438</text>
+<text x="950" y="245" text-anchor="middle" font-size="9" font-weight="normal" fill="#888">38kHz</text>
+<line x1="900" y1="195" x2="875" y2="195" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="904" y="199" text-anchor="start" font-size="9" font-weight="normal" fill="#555">OUT</text>
+<text x="872" y="199" text-anchor="end" font-size="9" font-weight="normal" fill="#999">1</text>
+<line x1="900" y1="220" x2="875" y2="220" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="904" y="224" text-anchor="start" font-size="9" font-weight="normal" fill="#555">GND</text>
+<text x="872" y="224" text-anchor="end" font-size="9" font-weight="normal" fill="#999">2</text>
+<line x1="900" y1="245" x2="875" y2="245" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="904" y="249" text-anchor="start" font-size="9" font-weight="normal" fill="#555">VS</text>
+<text x="872" y="249" text-anchor="end" font-size="9" font-weight="normal" fill="#999">3</text>
+<line x1="815" y1="180" x2="815" y2="172" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="809" y1="174" x2="815" y2="168" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="821" y1="174" x2="815" y2="168" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="815" y="164" text-anchor="middle" font-size="11" font-weight="bold" fill="#cc0000">+5V</text>
+<line x1="815" y1="180" x2="815" y2="190" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 815,190 L 815,193.92857142857142 L 821,197.85714285714283 L 809,201.78571428571428 L 809,205.7142857142857 L 821,209.64285714285714 L 821,213.57142857142856 L 809,217.5 L 809,221.42857142857142 L 821,225.35714285714283 L 821,229.28571428571428 L 809,233.2142857142857 L 809,237.14285714285714 L 821,241.07142857142856 L 815,241.07142857142858 L 815,245" fill="none" stroke="#222" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="827" y="209" text-anchor="start" font-size="11" font-weight="bold" fill="#222">R1</text>
+<text x="827" y="223" text-anchor="start" font-size="10" font-weight="normal" fill="#222">100Ω</text>
+<line x1="815" y1="245" x2="875" y2="245" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<circle cx="845" cy="245" r="3" fill="#222"/>
+<line x1="845" y1="245" x2="845" y2="263" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="835" y1="263" x2="855" y2="263" stroke="#222" stroke-width="2.5" stroke-linecap="round"/>
+<path d="M 835 270 Q 845 275 855 270" fill="none" stroke="#222" stroke-width="2"/>
+<line x1="845" y1="270" x2="845" y2="295" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="859" y="259" text-anchor="start" font-size="12" font-weight="bold" fill="#cc0000">+</text>
+<text x="830" y="277" text-anchor="end" font-size="11" font-weight="bold" fill="#222">C1</text>
+<text x="830" y="290" text-anchor="end" font-size="10" font-weight="normal" fill="#222">4.7µF</text>
+<line x1="845" y1="295" x2="845" y2="301" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="837" y1="301" x2="853" y2="301" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="840" y1="305" x2="850" y2="305" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="843" y1="309" x2="847" y2="309" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="875" y1="220" x2="875" y2="255" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="875" y1="255" x2="875" y2="261" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="867" y1="261" x2="883" y2="261" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="870" y1="265" x2="880" y2="265" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="873" y1="269" x2="877" y2="269" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="875" y1="195" x2="835" y2="195" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="835" y1="195" x2="835" y2="370" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="835" y1="370" x2="580" y2="370" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="707" y="360" text-anchor="middle" font-size="10" font-weight="normal" fill="#0066aa">TSOP OUT → PB6 (IR input signal)</text>
+<line x1="900" y1="620" x2="935" y2="620" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="935" y1="600" x2="935" y2="640" stroke="#222" stroke-width="3" stroke-linecap="round"/>
+<line x1="935" y1="610" x2="965" y2="585" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="965" y1="585" x2="965" y2="570" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="935" y1="630" x2="965" y2="655" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="965" y1="655" x2="965" y2="670" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="958,642 968,652 956,652" fill="#222"/>
+<circle cx="950" cy="620" r="28" fill="none" stroke="#222" stroke-width="1.5"/>
+<text x="982" y="615" text-anchor="start" font-size="12" font-weight="bold" fill="#222">Q1</text>
+<text x="982" y="630" text-anchor="start" font-size="11" font-weight="normal" fill="#222">2N3904</text>
+<text x="970" y="578" text-anchor="start" font-size="9" font-weight="normal" fill="#888">C</text>
+<text x="895" y="624" text-anchor="end" font-size="9" font-weight="normal" fill="#888">B</text>
+<text x="970" y="665" text-anchor="start" font-size="9" font-weight="normal" fill="#888">E</text>
+<line x1="965" y1="670" x2="965" y2="676" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="957" y1="676" x2="973" y2="676" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="960" y1="680" x2="970" y2="680" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="963" y1="684" x2="967" y2="684" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 845,620 L 848.9285714285714,620 L 852.8571428571429,626 L 856.7857142857143,614 L 860.7142857142858,614 L 864.6428571428571,626 L 868.5714285714286,626 L 872.5,614 L 876.4285714285714,614 L 880.3571428571429,626 L 884.2857142857143,626 L 888.2142857142858,614 L 892.1428571428571,614 L 896.0714285714286,626 L 896.0714285714286,620 L 900,620" fill="none" stroke="#222" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="872" y="608" text-anchor="middle" font-size="11" font-weight="bold" fill="#222">R3</text>
+<text x="872" y="638" text-anchor="middle" font-size="10" font-weight="normal" fill="#222">1kΩ</text>
+<line x1="580" y1="400" x2="630" y2="400" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="630" y1="400" x2="630" y2="620" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="630" y1="620" x2="845" y2="620" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="737" y="608" text-anchor="middle" font-size="10" font-weight="normal" fill="#0066aa">PB7 → R3 → Q1 base (PWM drive)</text>
+<polygon points="953,535 977,535 965,565" fill="none" stroke="#222" stroke-width="1.5"/>
+<line x1="953" y1="565" x2="977" y2="565" stroke="#222" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="965" y1="515" x2="965" y2="535" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="965" y1="565" x2="965" y2="570" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="979" y1="538" x2="989" y2="530" stroke="#cc0000" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="987,527 991,533 985,531" fill="#cc0000"/>
+<line x1="981" y1="546" x2="991" y2="538" stroke="#cc0000" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="989,535 993,541 987,539" fill="#cc0000"/>
+<text x="947" y="546" text-anchor="end" font-size="11" font-weight="bold" fill="#222">D1</text>
+<text x="947" y="560" text-anchor="end" font-size="10" font-weight="normal" fill="#222">IR333-A</text>
+<text x="995" y="554" text-anchor="start" font-size="9" font-weight="normal" fill="#888">IR LED</text>
+<text x="995" y="566" text-anchor="start" font-size="9" font-weight="normal" fill="#888">940nm</text>
+<text x="973" y="528" text-anchor="start" font-size="8" font-weight="normal" fill="#888">A</text>
+<text x="981" y="574" text-anchor="start" font-size="8" font-weight="normal" fill="#888">K</text>
+<path d="M 965,460 L 965,463.92857142857144 L 971,467.8571428571429 L 959,471.7857142857143 L 959,475.7142857142857 L 971,479.64285714285717 L 971,483.5714285714286 L 959,487.5 L 959,491.42857142857144 L 971,495.3571428571429 L 971,499.2857142857143 L 959,503.2142857142857 L 959,507.14285714285717 L 971,511.07142857142856 L 965,511.07142857142856 L 965,515" fill="none" stroke="#222" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="979" y="482" text-anchor="start" font-size="11" font-weight="bold" fill="#222">R2</text>
+<text x="979" y="496" text-anchor="start" font-size="10" font-weight="normal" fill="#222">47Ω</text>
+<line x1="965" y1="445" x2="965" y2="460" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="965" y1="445" x2="965" y2="437" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="959" y1="439" x2="965" y2="433" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="971" y1="439" x2="965" y2="433" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="965" y="429" text-anchor="middle" font-size="11" font-weight="bold" fill="#cc0000">+5V</text>
+<rect x="780" y="100" width="280" height="230" fill="none" stroke="#0066aa" stroke-width="1" stroke-dasharray="6,4" rx="8"/>
+<text x="920" y="118" text-anchor="middle" font-size="12" font-weight="bold" fill="#0066aa">IR RECEIVER</text>
+<rect x="780" y="420" width="280" height="290" fill="none" stroke="#cc6600" stroke-width="1" stroke-dasharray="6,4" rx="8"/>
+<text x="920" y="438" text-anchor="middle" font-size="12" font-weight="bold" fill="#cc6600">IR LED TRANSMITTER</text>
+<text x="1015" y="470" text-anchor="start" font-size="9" font-weight="normal" fill="#888">I = (5 - 1.2 - 0.2) / 47</text>
+<text x="1015" y="482" text-anchor="start" font-size="9" font-weight="normal" fill="#888">≈ 76 mA (peak)</text>
+<text x="840" y="650" text-anchor="end" font-size="9" font-weight="normal" fill="#888">I_base = (3.3 - 0.7) / 1k</text>
+<text x="840" y="662" text-anchor="end" font-size="9" font-weight="normal" fill="#888">≈ 2.6 mA</text>
+<!-- R4: 10kΩ pull-down from base junction to GND -->
+<line x1="900" y1="620" x2="900" y2="635" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 900,635 L 900,638 L 906,642 L 894,646 L 906,650 L 894,654 L 906,658 L 894,662 L 900,666 L 900,669" fill="none" stroke="#222" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="900" y1="669" x2="900" y2="676" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="892" y1="676" x2="908" y2="676" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="895" y1="680" x2="905" y2="680" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="898" y1="684" x2="902" y2="684" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="912" y="648" text-anchor="start" font-size="11" font-weight="bold" fill="#222">R4</text>
+<text x="912" y="662" text-anchor="start" font-size="10" font-weight="normal" fill="#222">10kΩ</text>
+<rect x="30" y="750" width="650" height="220" fill="#fafaf0" stroke="#222" stroke-width="1" rx="3"/>
+<text x="355" y="770" text-anchor="middle" font-size="14" font-weight="bold" fill="#222">CONNECTION TABLE</text>
+<line x1="40" y1="795" x2="670" y2="795" stroke="#222" stroke-width="1" stroke-linecap="round"/>
+<text x="50" y="790" text-anchor="start" font-size="10" font-weight="bold" fill="#222">FROM</text>
+<text x="210" y="790" text-anchor="start" font-size="10" font-weight="bold" fill="#222">TO</text>
+<text x="430" y="790" text-anchor="start" font-size="10" font-weight="bold" fill="#222">WIRE/NOTE</text>
+<text x="50" y="810" text-anchor="start" font-size="10" font-weight="normal" fill="#333">PB6 (J2 pin 7)</text>
+<text x="210" y="810" text-anchor="start" font-size="10" font-weight="normal" fill="#333">TSOP13438 pin 1 (OUT)</text>
+<text x="430" y="810" text-anchor="start" font-size="9" font-weight="normal" fill="#666">Direct wire — IR input signal</text>
+<text x="50" y="827" text-anchor="start" font-size="10" font-weight="normal" fill="#333">PB7 (J2 pin 6)</text>
+<text x="210" y="827" text-anchor="start" font-size="10" font-weight="normal" fill="#333">R3 (1kΩ) → Q1 Base</text>
+<text x="430" y="827" text-anchor="start" font-size="9" font-weight="normal" fill="#666">38kHz PWM output to transistor</text>
+<text x="50" y="844" text-anchor="start" font-size="10" font-weight="normal" fill="#333">+5V (J3 pin 1)</text>
+<text x="210" y="844" text-anchor="start" font-size="10" font-weight="normal" fill="#333">R1 (100Ω) → TSOP pin 3 (VS)</text>
+<text x="430" y="844" text-anchor="start" font-size="9" font-weight="normal" fill="#666">Filtered supply for receiver</text>
+<text x="50" y="861" text-anchor="start" font-size="10" font-weight="normal" fill="#333">+5V (J3 pin 1)</text>
+<text x="210" y="861" text-anchor="start" font-size="10" font-weight="normal" fill="#333">R2 (47Ω) → D1 Anode</text>
+<text x="430" y="861" text-anchor="start" font-size="9" font-weight="normal" fill="#666">LED supply (through current limiter)</text>
+<text x="50" y="878" text-anchor="start" font-size="10" font-weight="normal" fill="#333">TSOP pin 2 (GND)</text>
+<text x="210" y="878" text-anchor="start" font-size="10" font-weight="normal" fill="#333">GND (J3 pin 2)</text>
+<text x="430" y="878" text-anchor="start" font-size="9" font-weight="normal" fill="#666">Receiver ground</text>
+<text x="50" y="895" text-anchor="start" font-size="10" font-weight="normal" fill="#333">Q1 Emitter</text>
+<text x="210" y="895" text-anchor="start" font-size="10" font-weight="normal" fill="#333">GND (J3 pin 2)</text>
+<text x="430" y="895" text-anchor="start" font-size="9" font-weight="normal" fill="#666">Transistor ground</text>
+<text x="50" y="912" text-anchor="start" font-size="10" font-weight="normal" fill="#333">Q1 Base</text>
+<text x="210" y="912" text-anchor="start" font-size="10" font-weight="normal" fill="#333">R4 (10kΩ) → GND</text>
+<text x="430" y="912" text-anchor="start" font-size="9" font-weight="normal" fill="#666">Pull-down — keeps LED off during reset</text>
+<text x="50" y="929" text-anchor="start" font-size="10" font-weight="normal" fill="#333">C1+ (4.7µF)</text>
+<text x="210" y="929" text-anchor="start" font-size="10" font-weight="normal" fill="#333">TSOP VS rail (after R1)</text>
+<text x="430" y="929" text-anchor="start" font-size="9" font-weight="normal" fill="#666">Bypass capacitor, + side</text>
+<text x="50" y="946" text-anchor="start" font-size="10" font-weight="normal" fill="#333">C1− (4.7µF)</text>
+<text x="210" y="946" text-anchor="start" font-size="10" font-weight="normal" fill="#333">GND (TSOP pin 2 rail)</text>
+<text x="430" y="946" text-anchor="start" font-size="9" font-weight="normal" fill="#666">Bypass capacitor, − side</text>
+<text x="50" y="946" text-anchor="start" font-size="10" font-weight="normal" fill="#333">D1 Cathode</text>
+<text x="210" y="946" text-anchor="start" font-size="10" font-weight="normal" fill="#333">Q1 Collector</text>
+<text x="430" y="946" text-anchor="start" font-size="9" font-weight="normal" fill="#666">LED driven by transistor switch</text>
+<text x="50" y="963" text-anchor="start" font-size="10" font-weight="normal" fill="#333">PA0, PA1</text>
+<text x="210" y="963" text-anchor="start" font-size="10" font-weight="normal" fill="#333">USB (built-in on LaunchPad)</text>
+<text x="430" y="963" text-anchor="start" font-size="9" font-weight="normal" fill="#666">UART0 — serial terminal 115200 baud</text>
+<rect x="720" y="750" width="350" height="220" fill="#fafaf0" stroke="#222" stroke-width="1" rx="3"/>
+<text x="895" y="770" text-anchor="middle" font-size="14" font-weight="bold" fill="#222">BILL OF MATERIALS</text>
+<line x1="730" y1="780" x2="1060" y2="780" stroke="#222" stroke-width="1" stroke-linecap="round"/>
+<text x="740" y="797" text-anchor="start" font-size="11" font-weight="bold" fill="#0066aa">U1</text>
+<text x="780" y="797" text-anchor="start" font-size="10" font-weight="normal" fill="#333">TM4C123GXL LaunchPad</text>
+<text x="740" y="817" text-anchor="start" font-size="11" font-weight="bold" fill="#0066aa">U2</text>
+<text x="780" y="817" text-anchor="start" font-size="10" font-weight="normal" fill="#333">TSOP13438  (38kHz IR receiver)</text>
+<text x="740" y="837" text-anchor="start" font-size="11" font-weight="bold" fill="#0066aa">D1</text>
+<text x="780" y="837" text-anchor="start" font-size="10" font-weight="normal" fill="#333">IR333-A    (940nm IR LED)</text>
+<text x="740" y="857" text-anchor="start" font-size="11" font-weight="bold" fill="#0066aa">Q1</text>
+<text x="780" y="857" text-anchor="start" font-size="10" font-weight="normal" fill="#333">2N3904     (NPN transistor, TO-92)</text>
+<text x="740" y="877" text-anchor="start" font-size="11" font-weight="bold" fill="#0066aa">R1</text>
+<text x="780" y="877" text-anchor="start" font-size="10" font-weight="normal" fill="#333">100Ω  ¼W  (TSOP supply filter)</text>
+<text x="740" y="897" text-anchor="start" font-size="11" font-weight="bold" fill="#0066aa">R2</text>
+<text x="780" y="897" text-anchor="start" font-size="10" font-weight="normal" fill="#333">47Ω   ¼W  (LED current limiter)</text>
+<text x="740" y="917" text-anchor="start" font-size="11" font-weight="bold" fill="#0066aa">R3</text>
+<text x="780" y="917" text-anchor="start" font-size="10" font-weight="normal" fill="#333">1kΩ   ¼W  (Base drive resistor)</text>
+<text x="740" y="937" text-anchor="start" font-size="11" font-weight="bold" fill="#0066aa">R4</text>
+<text x="780" y="937" text-anchor="start" font-size="10" font-weight="normal" fill="#333">10kΩ  ¼W  (Base pull-down resistor)</text>
+<text x="740" y="957" text-anchor="start" font-size="11" font-weight="bold" fill="#0066aa">C1</text>
+<text x="780" y="957" text-anchor="start" font-size="10" font-weight="normal" fill="#333">4.7µF 16V  (Electrolytic, polarized)</text>
+<text x="1100" y="580" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">2N3904 Pinout (TO-92)</text>
+<text x="1100" y="594" text-anchor="middle" font-size="9" font-weight="normal" fill="#666">flat side facing you:</text>
+<rect x="1060" y="600" width="80" height="30" fill="#f0f0f0" stroke="#222" stroke-width="1" rx="2 2 10 10"/>
+<text x="1075" y="618" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">E</text>
+<text x="1100" y="618" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">B</text>
+<text x="1125" y="618" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">C</text>
+<line x1="1075" y1="630" x2="1075" y2="640" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="1100" y1="630" x2="1100" y2="640" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="1125" y1="630" x2="1125" y2="640" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="1100" y="670" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">TSOP13438 Pinout</text>
+<text x="1100" y="684" text-anchor="middle" font-size="9" font-weight="normal" fill="#666">(dome facing you):</text>
+<rect x="1065" y="690" width="70" height="25" fill="#f0f0f0" stroke="#222" stroke-width="1" rx="0 0 8 8"/>
+<text x="1082" y="707" text-anchor="middle" font-size="9" font-weight="normal" fill="#222">1</text>
+<text x="1100" y="707" text-anchor="middle" font-size="9" font-weight="normal" fill="#222">2</text>
+<text x="1118" y="707" text-anchor="middle" font-size="9" font-weight="normal" fill="#222">3</text>
+<line x1="1082" y1="715" x2="1082" y2="725" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="1100" y1="715" x2="1100" y2="725" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="1118" y1="715" x2="1118" y2="725" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+<text x="1082" y="737" text-anchor="middle" font-size="8" font-weight="normal" fill="#222">OUT</text>
+<text x="1100" y="737" text-anchor="middle" font-size="8" font-weight="normal" fill="#222">GND</text>
+<text x="1118" y="737" text-anchor="middle" font-size="8" font-weight="normal" fill="#222">VS</text>
+<text x="1100" y="460" text-anchor="middle" font-size="10" font-weight="bold" fill="#222">IR333-A LED:</text>
+<text x="1100" y="474" text-anchor="middle" font-size="9" font-weight="normal" fill="#666">Long lead = Anode (+)</text>
+<text x="1100" y="488" text-anchor="middle" font-size="9" font-weight="normal" fill="#666">Short lead = Cathode (−)</text>
+</svg>
